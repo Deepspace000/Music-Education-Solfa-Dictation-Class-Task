@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Solfa Dictation - Task 6</title>
+<script src="https://cdn.jsdelivr.net/npm/vexflow@4.2.3/build/cjs/vexflow.js"></script>
+<style>
+  :root{
+    --bg:#12232b; --panel:#1b3440; --panel2:#234454; --line:#3a6478;
+    --ink:#eaf6fb; --dim:#9fc2d1; --accent:#ffcf4d; --accent2:#57d6a6; --danger:#ff7a6b;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:"Trebuchet MS",Verdana,system-ui,sans-serif}
+  header{background:linear-gradient(180deg,#1b3440,#12232b);border-bottom:2px solid var(--line);
+    padding:10px 16px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+  h1{font-size:20px;margin:0;letter-spacing:1px}
+  h1 span{color:var(--accent)}
+  .tabs{display:flex;gap:8px;margin-left:auto}
+  .tab{background:var(--panel2);border:1px solid var(--line);color:var(--ink);padding:8px 18px;
+    border-radius:8px 8px 0 0;cursor:pointer;font-size:15px;font-family:inherit}
+  .tab.active{background:var(--accent);color:#12232b;font-weight:bold}
+  main{padding:16px;max-width:1180px;margin:0 auto}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:14px}
+  .panel h2{margin:0 0 10px;font-size:15px;text-transform:uppercase;letter-spacing:1.5px;color:var(--accent)}
+  .row{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end}
+  label.f{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--dim)}
+  select,input[type=text],input[type=number]{background:#0e1b22;color:var(--ink);border:1px solid var(--line);
+    border-radius:6px;padding:7px 9px;font-size:14px;font-family:inherit}
+  input[type=number]{width:80px}
+  button{background:var(--panel2);color:var(--ink);border:1px solid var(--line);border-radius:7px;
+    padding:8px 14px;font-size:14px;cursor:pointer;font-family:inherit}
+  button:hover:not(:disabled){background:#2d5668}
+  button:disabled{opacity:.4;cursor:not-allowed}
+  button.primary{background:var(--accent);color:#12232b;font-weight:bold;border-color:#c9a02f}
+  button.good{background:var(--accent2);color:#0b2b21;font-weight:bold;border-color:#3aa87e}
+  button.danger{background:#5a2a26;border-color:#8b3f38}
+  .big{font-size:18px;padding:13px 26px}
+  .chk{display:flex;align-items:center;gap:7px;font-size:14px;cursor:pointer}
+  .chk input{width:17px;height:17px;accent-color:var(--accent)}
+  .score{background:#fff;border-radius:8px;padding:6px;overflow-x:auto;min-height:80px}
+  .score svg{display:block}
+  .score .hl *{fill:#e8590c !important;stroke:#e8590c !important}
+  .score .sel *{fill:#1a73e8 !important;stroke:#1a73e8 !important}
+  .score .vf-stavenote{cursor:pointer}
+  .hidden{display:none}
+  .note{font-size:12px;color:var(--dim);line-height:1.5}
+  .status{text-align:center;font-size:15px;color:var(--dim);min-height:22px;margin-top:8px}
+  .pill{background:#0e1b22;border:1px solid var(--line);border-radius:99px;padding:5px 12px;font-size:12px;color:var(--dim)}
+  .ptitle{font-size:11px;letter-spacing:1.2px;text-transform:uppercase;color:var(--dim);margin:12px 0 6px}
+
+  .chips{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+  .chip{padding:7px 14px;border-radius:99px;border:1px solid var(--line);background:#0e1b22;
+    color:var(--dim);cursor:pointer;font-size:13px;font-family:inherit}
+  .chip.on{background:var(--accent);color:#12232b;border-color:var(--accent);font-weight:bold}
+
+  .palette{display:flex;gap:8px;flex-wrap:wrap}
+  .pbtn{display:flex;flex-direction:column;align-items:center;gap:3px;background:var(--panel2);
+    border:1px solid var(--line);border-radius:8px;padding:6px 8px 5px;cursor:pointer;min-width:74px}
+  .pbtn:hover{background:#2d5668}
+  .pbtn .gl{background:#fff;border-radius:4px;line-height:0}
+  .pbtn .gl svg{display:block}
+  .pbtn .lbl{font-size:12px;font-weight:bold}
+  .bars{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+  .barbox{background:#0e1b22;border:1px solid var(--line);border-radius:7px;padding:5px 10px;font-size:12px;color:var(--dim)}
+  .barbox.full{color:var(--accent2);border-color:#3aa87e}
+  .barbox.cur{border-color:var(--accent);color:var(--accent)}
+
+  .solfarow{display:flex;gap:8px;flex-wrap:wrap}
+  .solfabtn{padding:12px 0;width:68px;border-radius:8px;border:1px solid var(--line);background:var(--panel2);
+    color:var(--ink);font-size:20px;font-weight:bold;cursor:pointer;font-family:inherit}
+  .solfabtn:hover{background:#2d5668;border-color:var(--accent)}
+  .solfabtn small{display:block;font-size:10px;font-weight:normal;color:var(--accent);margin-top:2px}
+  .s0{border-bottom:4px solid #ff8f6b}.s1{border-bottom:4px solid #ffc06b}
+  .s2{border-bottom:4px solid #ffe27a}.s3{border-bottom:4px solid #9fe08a}
+  .s4{border-bottom:4px solid #7ed6e0}.s5{border-bottom:4px solid #8fb2ff}
+  .s6{border-bottom:4px solid #c79bff}.s7{border-bottom:4px solid #ff8f6b}
+
+  .beats{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin:14px 0 6px}
+  .bargrp{display:flex;gap:8px;padding:8px 10px;border:1px dashed var(--line);border-radius:10px}
+  .dot{width:46px;height:46px;border-radius:50%;background:#0e1b22;border:3px solid var(--line);
+    display:flex;align-items:center;justify-content:center;font-size:20px;color:var(--dim);transition:transform .06s linear}
+  .dot.on{background:var(--accent);color:#12232b;border-color:var(--accent);transform:scale(1.18)}
+  .dot.count.on{background:#fff;border-color:#fff}
+  .bigtest{text-align:center;font-size:26px;font-weight:bold;letter-spacing:.5px;margin-bottom:4px}
+  .instruct{text-align:center;color:var(--dim);font-size:14px;margin-bottom:8px}
+  .ctrls{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;margin-top:14px}
+</style>
+</head>
+<body>
+<header>
+  <h1>SOLFA <span>DICTATION</span> &middot; Task 6</h1>
+  <div class="tabs">
+    <button class="tab active" data-step="rhythm">1. Rhythm</button>
+    <button class="tab" data-step="melody">2. Melody</button>
+    <button class="tab" data-step="dictate">3. Dictate</button>
+  </div>
+</header>
+
+<main>
+  <div class="panel">
+    <div class="row">
+      <div class="chips" id="testChips"></div>
+      <button id="btnNew">+ New test</button>
+      <label class="f">Year<select id="yearSel"><option value="3">Year 3</option><option value="4">Year 4</option><option value="5">Year 5</option><option value="6">Year 6</option></select></label>
+      <label class="f">Name<input type="text" id="testName" style="min-width:160px"></label>
+      <label class="f">Bars<input type="number" id="barsNum" min="1" max="8" value="4"></label>
+      <label class="f">Tempo<input type="number" id="tempoNum" min="40" max="140" value="65"></label>
+      <span class="pill">4/4 &middot; do = C</span>
+      <span class="pill" id="saveState">saved</span>
+      <button id="btnDelTest" class="danger" style="margin-left:auto">Delete test</button>
+    </div>
+  </div>
+
+  <section id="step-rhythm">
+    <div class="panel">
+      <h2>1. Build the rhythm</h2>
+      <div class="note">Click a rhythm card to add it to the next free spot. A card must fit in the bar, so use <b>za</b> (rest) or a longer note to finish a bar.</div>
+      <div class="ptitle">Rhythm cards</div>
+      <div class="palette" id="palette"></div>
+      <div class="bars" id="barBoxes"></div>
+      <div class="row" style="margin-top:12px">
+        <button id="btnUndo">Undo last card</button>
+        <button id="btnRandRhythm">Random rhythm</button>
+        <button id="btnClearRhythm" class="danger">Clear all</button>
+        <button id="btnHearRhythm" class="good">&#9654; Hear rhythm</button>
+        <button id="btnToMelody" class="primary" style="margin-left:auto">Next: add the melody &rarr;</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="step-melody" class="hidden">
+    <div class="panel">
+      <h2>2. Add the solfa melody</h2>
+      <div class="note">Click a note on the staff (it turns blue), then pick its solfa. After each choice the blue note moves on by itself. Keys: <b>d r m f s l t</b>, and <b>Shift+D</b> for high do'.</div>
+      <div class="ptitle">Solfa bank</div>
+      <div class="solfarow" id="solfaRow"></div>
+      <div class="row" style="margin-top:12px">
+        <button id="btnRandMelody">Random melody</button>
+        <button id="btnClearMelody" class="danger">Clear melody</button>
+        <button id="btnHearMelody" class="good">&#9654; Hear melody</button>
+        <button id="btnBackRhythm">&larr; Back to rhythm</button>
+        <button id="btnToDictate" class="primary" style="margin-left:auto">Next: dictate &rarr;</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="step-dictate" class="hidden">
+    <div class="panel">
+      <div class="bigtest" id="dName">Test 1</div>
+      <div class="instruct">Write the rhythm first, then the solfa under each note.</div>
+      <div class="beats" id="dBeats"></div>
+      <div class="ctrls">
+        <button id="dDo" class="big">Give me <b>do</b></button>
+        <button id="dRhythm" class="big good">&#9654; Play rhythm</button>
+        <button id="dMelody" class="big good">&#9654; Play melody</button>
+        <button id="dStop" class="big danger">Stop</button>
+      </div>
+      <div class="ctrls" style="margin-top:8px">
+        <label class="chk"><input type="checkbox" id="optCount" checked> Count-in (4 beats)</label>
+        <label class="chk"><input type="checkbox" id="optBeat" checked> Beat clicks in the melody</label>
+      </div>
+      <div class="status" id="dStatus">&nbsp;</div>
+    </div>
+    <div class="panel">
+      <div class="row" style="justify-content:center;margin-bottom:10px">
+        <button id="rvRhythm">Show the rhythm</button>
+        <button id="rvSolfa">Show the solfa</button>
+        <button id="rvHide">Hide the answer</button>
+      </div>
+      <div class="score" id="dScore"></div>
+    </div>
+  </section>
+
+  <div class="panel" id="edPanel">
+    <div class="score" id="edScore"></div>
+  </div>
+</main>
+
+<script>
+var VF = Vex.Flow;
+
+/* ---------------- constants ---------------- */
+var BARQ = 4;                           /* 4/4 : 4 quarter notes a bar */
+var DURS = {
+  'w':{code:'w', dot:false,q:4}, 'h.':{code:'h',dot:true,q:3}, 'h':{code:'h',dot:false,q:2},
+  'q':{code:'q', dot:false,q:1}, '8':{code:'8',dot:false,q:.5}, '16':{code:'16',dot:false,q:.25}
+};
+function P(d, rest){ return {d:d, rest:!!rest}; }
+var CARDS = [
+  {id:'ta',    lbl:'ta',          n:[P('q')]},
+  {id:'titi',  lbl:'ti-ti',       n:[P('8'),P('8')]},
+  {id:'tika',  lbl:'ticka-ticka', n:[P('16'),P('16'),P('16'),P('16')]},
+  {id:'titk',  lbl:'ti-ticka',    n:[P('8'),P('16'),P('16')]},
+  {id:'tkti',  lbl:'ticka-ti',    n:[P('16'),P('16'),P('8')]},
+  {id:'taa',   lbl:'ta-a',        n:[P('h')]},
+  {id:'taaa',  lbl:'ta-a-a',      n:[P('h.')]},
+  {id:'taaaa', lbl:'ta-a-a-a',    n:[P('w')]},
+  {id:'za',    lbl:'za (rest)',   n:[P('q',true)]}
+];
+function cardQ(c){ return c.n.reduce(function(t,x){ return t + DURS[x.d].q; }, 0); }
+function cardById(id){ return CARDS.filter(function(c){ return c.id === id; })[0]; }
+
+var SOLFA = ['do','re','mi','fa','so','la','ti',"do'"];
+var KEYS  = ['c/4','d/4','e/4','f/4','g/4','a/4','b/4','c/5'];
+var FREQ  = [261.63,293.66,329.63,349.23,392.00,440.00,493.88,523.25];
+var NEUTRAL = 'b/4';                    /* rhythm-only notes sit on the middle line */
+var HOTKEYS = {d:0, r:1, m:2, f:3, s:4, l:5, t:6};
+
+/* ---------------- state ---------------- */
+var tests = [];            /* {id,name,bars,tempo,notes:[{d,rest,deg,g}]} */
+var curId = null;
+var step = 'rhythm';
+var sel = -1;              /* selected note index (melody step) */
+var gCounter = 0;
+var revealLevel = 0;       /* dictation: 0 hidden, 1 rhythm, 2 rhythm+solfa */
+
+function cur(){ return tests.filter(function(t){ return t.id === curId; })[0]; }
+function $(id){ return document.getElementById(id); }
+
+/* ---------------- storage (IndexedDB) ---------------- */
+var db = null, saveTimer = null;
+function openDB(cb){
+  var req;
+  try{ req = indexedDB.open('solfa_dictation_task6', 1); }catch(e){ cb(); return; }
+  req.onupgradeneeded = function(){ req.result.createObjectStore('kv'); };
+  req.onsuccess = function(){ db = req.result; cb(); };
+  req.onerror = function(){ cb(); };
+}
+function dbGet(cb){
+  if (!db){ cb(null); return; }
+  var r = db.transaction('kv').objectStore('kv').get('state');
+  r.onsuccess = function(){ cb(r.result || null); };
+  r.onerror = function(){ cb(null); };
+}
+function dbPut(){
+  if (!db){ $('saveState').textContent = 'not saved (no storage)'; return; }
+  var tx = db.transaction('kv', 'readwrite');
+  tx.objectStore('kv').put({tests:tests, curId:curId, gCounter:gCounter}, 'state');
+  tx.oncomplete = function(){ $('saveState').textContent = 'saved'; };
+  tx.onerror = function(){ $('saveState').textContent = 'save failed'; };
+}
+function save(){
+  $('saveState').textContent = 'saving...';
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(dbPut, 250);
+}
+
+function newTest(){
+  var n = tests.length + 1, id = 't' + Date.now() + Math.floor(Math.random()*1000);
+  var yr = (cur() && cur().year) || 3;
+  n = tests.filter(function(x){ return x.year === yr; }).length + 1;
+  var t = {id:id, name:'Test ' + n, year:yr, bars:4, tempo:65, notes:[]};
+  tests.push(t); curId = id; sel = -1;
+  return t;
+}
+
+/* ---------------- rhythm layout ---------------- */
+function totalQ(t){ var s = 0; t.notes.forEach(function(n){ s += DURS[n.d].q; }); return s; }
+function splitBars(t){
+  var bars = [], b = [], q = 0;
+  t.notes.forEach(function(n, i){
+    b.push(i); q += DURS[n.d].q;
+    if (q >= BARQ - 1e-9){ bars.push(b); b = []; q = 0; }
+  });
+  if (b.length) bars.push(b);
+  return bars;
+}
+function addCard(card){
+  var t = cur(), tq = totalQ(t);
+  if (tq >= t.bars * BARQ - 1e-9){ flash('The rhythm is already ' + t.bars + ' bars long.'); return false; }
+  var used = tq % BARQ;
+  if (used + cardQ(card) > BARQ + 1e-9){ flash('That card does not fit in the rest of this bar.'); return false; }
+  var g = ++gCounter;
+  card.n.forEach(function(x){ t.notes.push({d:x.d, rest:x.rest, deg:null, g:g}); });
+  return true;
+}
+function randomRhythm(t){
+  t.notes = []; var tries = 0;
+  var weights = {ta:6, titi:5, tika:1, titk:0.6, tkti:0.6, taa:2, taaa:0.6, taaaa:0.2, za:0.8};
+  var bag = [];
+  CARDS.forEach(function(c){ for (var i = 0; i < Math.round(weights[c.id]*10); i++) bag.push(c); });
+  while (totalQ(t) < t.bars * BARQ - 1e-9 && tries++ < 400){
+    var left = BARQ - (totalQ(t) % BARQ);
+    var c = bag[Math.floor(Math.random()*bag.length)];
+    if (cardQ(c) > left + 1e-9) continue;
+    /* no rest at the start of a bar or at the very end */
+    if (c.id === 'za' && (left === BARQ || totalQ(t) + 1 >= t.bars*BARQ)) continue;
+    addCard(c);
+  }
+  while (totalQ(t) < t.bars*BARQ - 1e-9) addCard(cardById('ta'));
+}
+function randomMelody(t){
+  var soundIdx = []; t.notes.forEach(function(n, i){ if (!n.rest) soundIdx.push(i); });
+  if (!soundIdx.length) return;
+  var deg = [0,2,4][Math.floor(Math.random()*3)];
+  soundIdx.forEach(function(i, k){
+    if (k === soundIdx.length - 1){ deg = 0; }
+    else if (k > 0){
+      var st = [-2,-1,-1,0,1,1,2][Math.floor(Math.random()*7)];
+      if (Math.random() < 0.12) st = [-3,3,4][Math.floor(Math.random()*3)];
+      deg = Math.max(0, Math.min(7, deg + st));
+    }
+    t.notes[i].deg = deg;
+  });
+}
+
+/* ---------------- notation ---------------- */
+function buildNotes(t, idxs, showPitch){
+  return idxs.map(function(i){
+    var n = t.notes[i], d = DURS[n.d];
+    var key = (n.rest || !showPitch || n.deg === null) ? NEUTRAL : KEYS[n.deg];
+    var sn = new VF.StaveNote({keys:[key], duration:d.code + (n.rest ? 'r' : ''), clef:'treble'});
+    if (d.dot) VF.Dot.buildAndAttach([sn], {all:true});
+    return sn;
+  });
+}
+
+/* opts: {showNotes, showPitch, showSolfa, clickable}. Returns the SVG group of each note, by note index. */
+function renderScore(el, t, opts){
+  el.style.minHeight = el.offsetHeight + 'px';   /* hold the height so the page does not collapse and jump */
+  el.textContent = '';
+  var avail = (el.clientWidth || 900) - 16;
+  var firstW = 400, barW = 340;
+  var perRow = Math.max(1, Math.min(t.bars, Math.floor((avail - firstW)/barW) + 1));
+  while (t.bars % perRow !== 0 && perRow > 2) perRow--;
+  var rows = Math.ceil(t.bars/perRow);
+  var width = 10 + firstW + (perRow-1)*barW + 14;
+  var rowH = 170, height = rows*rowH + 20;
+  var renderer = new VF.Renderer(el, VF.Renderer.Backends.SVG);
+  renderer.resize(width, height);
+  var ctx = renderer.getContext();
+  var bars = splitBars(t), els = [];
+
+  for (var bi = 0; bi < t.bars; bi++){
+    var row = Math.floor(bi/perRow), col = bi % perRow;
+    var x = 10 + (col === 0 ? 0 : firstW + (col-1)*barW);
+    var w = col === 0 ? firstW : barW;
+    var y = 14 + row*rowH;
+    var stave = new VF.Stave(x, y, w);
+    if (col === 0){
+      stave.addClef('treble');
+      if (row === 0) stave.addTimeSignature('4/4');
+    }
+    if (bi === t.bars - 1) stave.setEndBarType(VF.Barline.type.END);
+    stave.setContext(ctx).draw();
+
+    var idxs = bars[bi] || [];
+    if (!opts.showNotes || !idxs.length) continue;
+    var notes = buildNotes(t, idxs, opts.showPitch);
+    var beams = [];
+    try{ beams = VF.Beam.generateBeams(notes, {groups:[new VF.Fraction(1,4)]}); }catch(e){}
+    var voice = new VF.Voice({num_beats:4, beat_value:4}).setStrict(false);
+    voice.addTickables(notes);
+    try{ new VF.Formatter().joinVoices([voice]).format([voice], w - (col === 0 ? (row === 0 ? 110 : 85) : 36)); }catch(e){}
+    voice.draw(ctx, stave);
+    beams.forEach(function(b){ b.setContext(ctx).draw(); });
+
+    var solfaY = stave.getYForLine(4) + 62;
+    idxs.forEach(function(ni, k){
+      var sn = notes[k], nd = t.notes[ni];
+      var g = null;
+      try{ g = sn.getSVGElement ? sn.getSVGElement() : sn.getAttribute('el'); }catch(e){}
+      els[ni] = g;
+      var cx = sn.getAbsoluteX() + 6;
+      if (opts.showSolfa && !nd.rest){
+        var tx = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        tx.setAttribute('x', cx); tx.setAttribute('y', solfaY);
+        tx.setAttribute('text-anchor', 'middle');
+        tx.setAttribute('font-size', DURS[nd.d].q < 0.5 ? '15' : '20'); tx.setAttribute('font-weight', 'bold');
+        tx.setAttribute('font-family', 'Trebuchet MS, Verdana, sans-serif');
+        tx.setAttribute('fill', nd.deg === null ? '#bbb' : '#12232b');
+        tx.textContent = nd.deg === null ? '?' : SOLFA[nd.deg];
+        el.querySelector('svg').appendChild(tx);
+      }
+      if (opts.clickable && g && !nd.rest){
+        g.addEventListener('click', function(){ sel = ni; refresh(); });
+      }
+    });
+  }
+  return els;
+}
+
+/* ---------------- views ---------------- */
+var edEls = [], dEls = [];
+function refresh(){
+  var keepY = window.scrollY, t = cur();
+  $('yearSel').value = t.year;
+  Array.prototype.forEach.call($('yearSel').options, function(o){
+    var c = tests.filter(function(x){ return String(x.year) === o.value; }).length;
+    o.textContent = 'Year ' + o.value + ' (' + c + ' test' + (c === 1 ? '' : 's') + ')';
+  });
+  $('testName').value = t.name;
+  $('barsNum').value = t.bars;
+  $('tempoNum').value = t.tempo;
+  renderChips();
+  $('edPanel').classList.toggle('hidden', step === 'dictate');
+  ['rhythm','melody','dictate'].forEach(function(s){
+    $('step-' + s).classList.toggle('hidden', s !== step);
+  });
+  document.querySelectorAll('.tab').forEach(function(b){ b.classList.toggle('active', b.dataset.step === step); });
+
+  if (step === 'rhythm' || step === 'melody'){
+    var melody = step === 'melody';
+    if (melody && (sel < 0 || !t.notes[sel] || t.notes[sel].rest)) sel = nextSounding(t, -1);
+    if (!t.notes.length){
+      $('edScore').textContent = '';
+      var em = document.createElement('div'); em.className = 'note'; em.style.cssText = 'color:#555;padding:24px;text-align:center;font-size:15px';
+      em.textContent = melody ? 'No rhythm yet. Go back to step 1 and add some rhythm cards.' : 'No staves yet. Click a rhythm card to begin.';
+      $('edScore').appendChild(em); edEls = [];
+    } else edEls = renderScore($('edScore'), t, {showNotes:true, showPitch:melody, showSolfa:melody, clickable:melody});
+    if (melody && sel >= 0 && edEls[sel]) edEls[sel].classList.add('sel');
+    if (!melody) renderBarBoxes(t);
+  }
+  if (step === 'dictate'){
+    $('dName').textContent = 'Year ' + t.year + ' · ' + t.name;
+    dEls = renderScore($('dScore'), t, {showNotes:revealLevel > 0, showPitch:revealLevel > 1, showSolfa:revealLevel > 1});
+    buildBeatDots(t);
+  }
+  window.scrollTo(0, keepY);
+  ['edScore','dScore'].forEach(function(id){ $(id).style.minHeight = ''; });
+  window.scrollTo(0, keepY);
+}
+function nextSounding(t, from){
+  for (var i = from + 1; i < t.notes.length; i++) if (!t.notes[i].rest) return i;
+  return -1;
+}
+function renderChips(){
+  var c = $('testChips'); c.textContent = '';
+  tests.filter(function(x){ return x.year === cur().year; }).forEach(function(t){
+    var b = document.createElement('button');
+    b.className = 'chip' + (t.id === curId ? ' on' : '');
+    b.textContent = t.name;
+    b.onclick = function(){ stopAll(); curId = t.id; sel = -1; revealLevel = 0; refresh(); save(); };
+    c.appendChild(b);
+  });
+}
+function renderBarBoxes(t){
+  var box = $('barBoxes'); box.textContent = '';
+  var tq = totalQ(t);
+  for (var b = 0; b < t.bars; b++){
+    var filled = Math.max(0, Math.min(BARQ, tq - b*BARQ));
+    var d = document.createElement('div');
+    var isCur = tq < t.bars*BARQ && Math.floor(tq/BARQ) === b;
+    d.className = 'barbox' + (filled >= BARQ - 1e-9 ? ' full' : '') + (isCur ? ' cur' : '');
+    d.textContent = 'Bar ' + (b+1) + ': ' + (filled % 1 ? filled.toFixed(2) : filled) + ' / 4 beats';
+    box.appendChild(d);
+  }
+}
+function flash(m){
+  var old = $('flashMsg'); if (old) old.remove();
+  var s = document.createElement('div'); s.id = 'flashMsg'; s.className = 'note';
+  s.style.color = 'var(--danger)'; s.style.marginTop = '8px'; s.textContent = m;
+  $('barBoxes').after(s);
+  setTimeout(function(){ if (s.parentNode) s.remove(); }, 2500);
+}
+function buildBeatDots(t){
+  var host = $('dBeats'); host.textContent = '';
+  for (var b = 0; b < t.bars; b++){
+    var g = document.createElement('div'); g.className = 'bargrp';
+    for (var k = 0; k < 4; k++){
+      var d = document.createElement('div'); d.className = 'dot'; d.id = 'dot' + (b*4+k); d.textContent = k+1;
+      g.appendChild(d);
+    }
+    host.appendChild(g);
+  }
+}
+
+/* ---------------- audio ---------------- */
+var AC = null, playToken = 0, rafId = 0;
+function ctxA(){
+  if (!AC) AC = new (window.AudioContext || window.webkitAudioContext)();
+  if (AC.state === 'suspended') AC.resume();
+  return AC;
+}
+function click(at, accent, kind){
+  var c = AC, o = c.createOscillator(), g = c.createGain();
+  o.type = kind === 'wood' ? 'square' : 'sine';
+  o.frequency.value = kind === 'wood' ? 1500 : (accent ? 1250 : 850);
+  g.gain.setValueAtTime(0.0001, at);
+  g.gain.exponentialRampToValueAtTime(kind === 'wood' ? 0.55 : (accent ? 0.5 : 0.3), at + 0.003);
+  g.gain.exponentialRampToValueAtTime(0.0001, at + 0.07);
+  o.connect(g); g.connect(c.destination); o.start(at); o.stop(at + 0.09);
+}
+function tone(at, freq, dur){
+  var c = AC, g = c.createGain();
+  g.gain.setValueAtTime(0.0001, at);
+  g.gain.exponentialRampToValueAtTime(0.4, at + 0.015);
+  g.gain.exponentialRampToValueAtTime(0.18, at + Math.min(0.25, dur*0.5));
+  g.gain.setValueAtTime(0.18, at + Math.max(0.02, dur - 0.06));
+  g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+  g.connect(c.destination);
+  [[1,'triangle',1],[2,'sine',0.25],[3,'sine',0.1]].forEach(function(p){
+    var o = c.createOscillator(), og = c.createGain();
+    o.type = p[1]; o.frequency.value = freq*p[0]; og.gain.value = p[2];
+    o.connect(og); og.connect(g); o.start(at); o.stop(at + dur + 0.02);
+  });
+}
+function clearLights(){
+  document.querySelectorAll('.dot.on').forEach(function(d){ d.classList.remove('on','count'); });
+  [edEls, dEls].forEach(function(arr){ (arr || []).forEach(function(g){ if (g) g.classList.remove('hl'); }); });
+}
+function stopAll(){
+  playToken++; cancelAnimationFrame(rafId);
+  if (AC){ try{ AC.close(); }catch(e){} AC = null; }
+  clearLights();
+  $('dStatus').textContent = ' ';
+}
+
+/* Everything is scheduled on the audio clock up front; rAF only reads the clock to light things. */
+function play(mode, opts){
+  stopAll();
+  var t = cur(), c = ctxA(), token = playToken;
+  var spb = 60 / t.tempo, t0 = c.currentTime + 0.15;
+  var counts = opts.count ? 4 : 0, sched = [], i;
+  for (i = 0; i < counts; i++){
+    click(t0 + i*spb, i === 0, 'beat');
+    sched.push({at:t0 + i*spb, end:t0 + (i+1)*spb, count:i});
+  }
+  var base = t0 + counts*spb, q = 0;
+  t.notes.forEach(function(n, ni){
+    var at = base + q*spb, dur = DURS[n.d].q*spb;
+    if (!n.rest){
+      if (mode === 'rhythm') click(at, false, 'wood');
+      else if (n.deg !== null) tone(at, FREQ[n.deg], dur*0.95);
+    }
+    sched.push({at:at, end:at + dur, note:ni});
+    q += DURS[n.d].q;
+  });
+  var totalEnd = base + q*spb;
+  for (i = 0; i < t.bars*4; i++){
+    if (opts.beats) click(base + i*spb, i % 4 === 0, 'beat');
+    sched.push({at:base + i*spb, end:base + (i+1)*spb, beat:i});
+  }
+
+  var lastNote = -2;
+  (function frame(){
+    if (token !== playToken) return;
+    var now = c.currentTime, note = -1, beat = -1, cnt = -1;
+    sched.forEach(function(s){
+      if (now < s.at || now >= s.end) return;
+      if (s.count !== undefined) cnt = s.count;
+      if (s.beat !== undefined) beat = s.beat;
+      if (s.note !== undefined) note = s.note;
+    });
+    document.querySelectorAll('.dot.on').forEach(function(d){ d.classList.remove('on','count'); });
+    if (cnt >= 0){
+      var cd = $('dot' + cnt); if (cd) cd.classList.add('on','count');
+      $('dStatus').textContent = 'Count in... ' + (cnt+1);
+    } else if (beat >= 0){
+      var dd = $('dot' + beat); if (dd) dd.classList.add('on');
+      $('dStatus').textContent = mode === 'rhythm' ? 'Listen to the rhythm' : 'Listen to the melody';
+    }
+    if (note !== lastNote){
+      [edEls, dEls].forEach(function(arr){ (arr || []).forEach(function(g, k){ if (g) g.classList.toggle('hl', k === note); }); });
+      lastNote = note;
+    }
+    if (now > totalEnd + 0.1){ clearLights(); $('dStatus').textContent = 'Done'; return; }
+    rafId = requestAnimationFrame(frame);
+  })();
+}
+
+/* ---------------- controls ---------------- */
+function buildPalette(){
+  var host = $('palette');
+  CARDS.forEach(function(card){
+    var b = document.createElement('button'); b.className = 'pbtn';
+    var gl = document.createElement('div'); gl.className = 'gl';
+    var lbl = document.createElement('div'); lbl.className = 'lbl'; lbl.textContent = card.lbl;
+    b.appendChild(gl); b.appendChild(lbl); host.appendChild(b);
+    b.onclick = function(){ if (addCard(card)){ refresh(); save(); } };
+    try{                                 /* tiny preview on each card, one line */
+      var r = new VF.Renderer(gl, VF.Renderer.Backends.SVG);
+      var q = cardQ(card), w = 36 + q*26;
+      r.resize(w + 10, 84);
+      var cx = r.getContext(), st = new VF.Stave(0, -18, w + 8);
+      st.setConfigForLines([{visible:false},{visible:false},{visible:true},{visible:false},{visible:false}]);
+      st.setContext(cx).draw();
+      var ns = card.n.map(function(x){
+        var d = DURS[x.d], s = new VF.StaveNote({keys:['b/4'], duration:d.code + (x.rest ? 'r' : ''), clef:'treble'});
+        if (d.dot) VF.Dot.buildAndAttach([s], {all:true});
+        return s;
+      });
+      var bm = []; try{ bm = VF.Beam.generateBeams(ns, {groups:[new VF.Fraction(1,4)]}); }catch(e){}
+      var v = new VF.Voice({num_beats:q, beat_value:4}).setStrict(false); v.addTickables(ns);
+      new VF.Formatter().joinVoices([v]).format([v], w - 8);
+      v.draw(cx, st); bm.forEach(function(x){ x.setContext(cx).draw(); });
+    }catch(e){}
+  });
+}
+function buildSolfa(){
+  var host = $('solfaRow');
+  SOLFA.forEach(function(s, i){
+    var b = document.createElement('button'); b.className = 'solfabtn s' + i;
+    b.appendChild(document.createTextNode(s));
+    var sm = document.createElement('small'); sm.textContent = i === 7 ? 'D' : 'drmfslt'[i];
+    b.appendChild(sm);
+    b.onclick = function(){ setSolfa(i); };
+    host.appendChild(b);
+  });
+}
+function setSolfa(deg){
+  var t = cur();
+  if (sel < 0 || !t.notes[sel]) return;
+  t.notes[sel].deg = deg;
+  var nx = nextSounding(t, sel); if (nx >= 0) sel = nx;
+  refresh(); save();
+  var c = ctxA(); tone(c.currentTime + 0.02, FREQ[deg], 0.5);   /* audition the note just chosen */
+}
+function go(s){
+  stopAll(); step = s;
+  if (s === 'dictate') revealLevel = 0;
+  refresh();
+}
+function melodyReady(){
+  var t = cur();
+  return t.notes.length > 0 && t.notes.every(function(n){ return n.rest || n.deg !== null; });
+}
+
+document.querySelectorAll('.tab').forEach(function(b){ b.onclick = function(){ go(b.dataset.step); }; });
+$('btnToMelody').onclick = function(){ go('melody'); };
+$('btnBackRhythm').onclick = function(){ go('rhythm'); };
+$('btnToDictate').onclick = function(){ go('dictate'); };
+$('btnNew').onclick = function(){ stopAll(); newTest(); revealLevel = 0; go('rhythm'); save(); };
+$('btnDelTest').onclick = function(){
+  if (!confirm('Delete "' + cur().name + '"?')) return;
+  stopAll();
+  var yr = cur().year, gone = curId;
+  tests = tests.filter(function(t){ return t.id !== gone; });
+  var same = tests.filter(function(t){ return t.year === yr; });
+  if (same.length) curId = same[0].id;
+  else newTestInYear(yr);
+  sel = -1; refresh(); save();
+};
+function newTestInYear(yr){
+  var prev = curId; curId = null;
+  var n = tests.filter(function(x){ return x.year === yr; }).length + 1, id = 't' + Date.now() + Math.floor(Math.random()*1000);
+  tests.push({id:id, name:'Test ' + n, year:yr, bars:4, tempo:65, notes:[]}); curId = id; sel = -1;
+}
+$('yearSel').onchange = function(){
+  stopAll(); var yr = parseInt(this.value, 10);
+  var same = tests.filter(function(t){ return t.year === yr; });
+  if (same.length) curId = same[0].id; else newTestInYear(yr);
+  sel = -1; revealLevel = 0; refresh(); save();
+};
+$('testName').oninput = function(){ cur().name = this.value || 'Test'; renderChips(); save(); };
+$('barsNum').onchange = function(){
+  var t = cur(), v = Math.max(1, Math.min(8, parseInt(this.value, 10) || 4));
+  var q = 0, keep = [];                  /* drop whole notes that fall beyond the new length */
+  t.notes.forEach(function(n){ if (q + DURS[n.d].q <= v*BARQ + 1e-9){ keep.push(n); q += DURS[n.d].q; } });
+  t.notes = keep; t.bars = v; sel = -1; refresh(); save();
+};
+$('tempoNum').onchange = function(){ cur().tempo = Math.max(40, Math.min(140, parseInt(this.value, 10) || 65)); save(); };
+
+$('btnUndo').onclick = function(){
+  var t = cur(); if (!t.notes.length) return;
+  var g = t.notes[t.notes.length-1].g;
+  while (t.notes.length && t.notes[t.notes.length-1].g === g) t.notes.pop();
+  refresh(); save();
+};
+$('btnClearRhythm').onclick = function(){
+  if (!confirm('Clear everything? This deletes the whole rhythm, the melody and all the staves for "' + cur().name + '".')) return;
+  stopAll(); cur().notes = []; sel = -1; refresh(); save();
+};
+$('btnRandRhythm').onclick = function(){ randomRhythm(cur()); refresh(); save(); };
+$('btnClearMelody').onclick = function(){ if (!confirm('Clear all the solfa from the melody?')) return; cur().notes.forEach(function(n){ n.deg = null; }); sel = -1; refresh(); save(); };
+$('btnRandMelody').onclick = function(){ randomMelody(cur()); sel = -1; refresh(); save(); };
+$('btnHearRhythm').onclick = function(){ play('rhythm', {count:true}); };
+$('btnHearMelody').onclick = function(){
+  if (!melodyReady()){ flashMelody('Give every note a solfa first.'); return; }
+  play('melody', {count:true});
+};
+function flashMelody(m){ var old = $('flashMsg'); if (old) old.remove();
+  var s = document.createElement('div'); s.id = 'flashMsg'; s.className = 'note'; s.style.color = 'var(--danger)';
+  s.style.marginTop = '8px'; s.textContent = m; $('solfaRow').after(s);
+  setTimeout(function(){ if (s.parentNode) s.remove(); }, 2500); }
+
+$('dDo').onclick = function(){ stopAll(); var c = ctxA(); tone(c.currentTime + 0.05, FREQ[0], 1.4); $('dStatus').textContent = 'do'; };
+$('dRhythm').onclick = function(){ play('rhythm', {count:$('optCount').checked}); };
+$('dMelody').onclick = function(){
+  if (!melodyReady()){ $('dStatus').textContent = 'Add the solfa for every note in step 2 first.'; return; }
+  play('melody', {count:$('optCount').checked, beats:$('optBeat').checked});
+};
+$('dStop').onclick = stopAll;
+$('rvRhythm').onclick = function(){ revealLevel = 1; refresh(); };
+$('rvSolfa').onclick = function(){ revealLevel = 2; refresh(); };
+$('rvHide').onclick = function(){ revealLevel = 0; refresh(); };
+
+document.addEventListener('keydown', function(e){
+  if (step !== 'melody' || /INPUT|SELECT|TEXTAREA/.test(e.target.tagName || '')) return;
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  var k = e.key.toLowerCase();
+  if (k === 'd' && e.shiftKey){ setSolfa(7); e.preventDefault(); }
+  else if (HOTKEYS[k] !== undefined && !e.shiftKey){ setSolfa(HOTKEYS[k]); e.preventDefault(); }
+  else if (e.key === 'ArrowRight'){ var n = nextSounding(cur(), sel); if (n >= 0){ sel = n; refresh(); } }
+  else if (e.key === 'ArrowLeft'){
+    for (var i = sel - 1; i >= 0; i--) if (!cur().notes[i].rest){ sel = i; refresh(); break; }
+  }
+});
+var rzTimer = null;
+window.addEventListener('resize', function(){ clearTimeout(rzTimer); rzTimer = setTimeout(refresh, 150); });
+
+/* ---------------- start ---------------- */
+buildPalette(); buildSolfa();
+openDB(function(){
+  dbGet(function(s){
+    if (s && s.tests && s.tests.length){
+      tests = s.tests; tests.forEach(function(t){ if (!t.year) t.year = 3; }); curId = s.curId; gCounter = s.gCounter || 0;
+      if (!cur()) curId = tests[0].id;
+    } else { newTest(); }
+    refresh();
+  });
+});
+</script>
+</body>
+</html>
