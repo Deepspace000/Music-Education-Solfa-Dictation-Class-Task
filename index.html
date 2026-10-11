@@ -76,14 +76,29 @@
   .s4{border-bottom:4px solid #7ed6e0}.s5{border-bottom:4px solid #8fb2ff}
   .s6{border-bottom:4px solid #c79bff}.s7{border-bottom:4px solid #ff8f6b}
 
-  .beats{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin:14px 0 6px}
+  .beats{display:flex;flex-direction:column;align-items:center;gap:10px;margin:14px 0 6px}
+  .brow{display:flex;width:100%;justify-content:center}
   .bargrp{display:flex;gap:8px;padding:8px 10px;border:1px dashed var(--line);border-radius:10px}
-  .dot{width:46px;height:46px;border-radius:50%;background:#0e1b22;border:3px solid var(--line);
-    display:flex;align-items:center;justify-content:center;font-size:20px;color:var(--dim);transition:transform .06s linear}
-  .dot.on{background:var(--accent);color:#12232b;border-color:var(--accent);transform:scale(1.18)}
-  .dot.count.on{background:#fff;border-color:#fff}
+  .dot{flex:1 1 0;max-width:58px;aspect-ratio:1/1;border-radius:0;background:#0e1b22;border:2px solid var(--line);margin-left:-2px;
+    display:flex;align-items:center;justify-content:center;font-size:22px;color:var(--dim)}
+  .dot.barstart{border-left:6px solid var(--ink);margin-left:0}
+  .dot.rowend{border-right:6px solid var(--ink)}
+  .dot.on{background:var(--accent);color:#12232b}
+  .dot.count.on{background:#fff}
   .bigtest{text-align:center;font-size:26px;font-weight:bold;letter-spacing:.5px;margin-bottom:4px}
   .instruct{text-align:center;color:var(--dim);font-size:14px;margin-bottom:8px}
+  .exwrap{width:100%;max-width:1000px;margin:12px auto 0}
+  .exrow{display:flex;width:100%}
+  .excell{flex:1 1 0;min-width:0;aspect-ratio:1/1;border:2px solid var(--ink);margin-left:-2px;background:#0e1b22;
+    display:flex;flex-direction:column;align-items:stretch;justify-content:space-between;padding:6px 4px 4px;color:var(--ink);overflow:hidden}
+  .excell.barstart{border-left:6px solid var(--ink);margin-left:0}
+  .excell.rowend{border-right:6px solid var(--ink)}
+  .excell svg{width:86%;margin:0 auto;aspect-ratio:100/70;height:auto;flex:none;display:block}
+  .exsol{flex:1 1 auto;display:flex;align-items:center;justify-content:center;white-space:nowrap;
+    font-weight:bold;color:var(--accent);font-size:clamp(16px,3vw,38px);letter-spacing:.06em}
+  .exsol.small{font-size:clamp(11px,2vw,26px);letter-spacing:.02em}
+  .excap{text-align:center;font-size:20px;font-weight:bold;color:var(--accent);margin:4px 0 12px}
+  .exhow{text-align:center;color:var(--ink);font-size:16px;margin:6px 0 12px;line-height:1.5}
   .ctrls{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;margin-top:14px}
 </style>
 </head>
@@ -91,7 +106,8 @@
 <header>
   <h1>SOLFA <span>DICTATION</span> &middot; Task 6</h1>
   <div class="tabs">
-    <button class="tab active" data-step="rhythm">1. Rhythm</button>
+    <button class="tab active" data-step="warm">Warm-up</button>
+    <button class="tab" data-step="rhythm">1. Rhythm</button>
     <button class="tab" data-step="melody">2. Melody</button>
     <button class="tab" data-step="dictate">3. Dictate</button>
   </div>
@@ -104,7 +120,7 @@
       <button id="btnNew">+ New test</button>
       <label class="f">Year<select id="yearSel"><option value="3">Year 3</option><option value="4">Year 4</option><option value="5">Year 5</option><option value="6">Year 6</option></select></label>
       <label class="f">Name<input type="text" id="testName" style="min-width:160px"></label>
-      <label class="f">Bars<input type="number" id="barsNum" min="1" max="8" value="4"></label>
+      <label class="f">Bars<input type="number" id="barsNum" min="1" max="8" value="2"></label>
       <label class="f">Tempo<input type="number" id="tempoNum" min="40" max="140" value="65"></label>
       <span class="pill">4/4 &middot; do = C</span>
       <span class="pill" id="saveState">saved</span>
@@ -112,7 +128,28 @@
     </div>
   </div>
 
-  <section id="step-rhythm">
+  <section id="step-warm">
+    <div class="panel">
+      <h2>Warm-up: sing the scale</h2>
+      <div class="exhow" style="margin-top:0">Sing along with the solfa. Each note lights up as it sounds.</div>
+      <div class="score" id="wScore"></div>
+      <div class="ctrls">
+        <label class="f">Pattern
+          <select id="wDir"><option value="up">Up: do to do'</option><option value="down">Down: do' to do</option><option value="both">Up and down</option></select></label>
+        <label class="f" style="min-width:230px">Tempo: <b id="wTempoVal">70</b> beats per minute
+          <input type="range" id="wTempo" min="40" max="140" value="70"></label>
+        <label class="chk"><input type="checkbox" id="wCount" checked> Count-in (4 beats)</label>
+      </div>
+      <div class="ctrls">
+        <button id="wDo" class="big">Give me <b>do</b></button>
+        <button id="wPlay" class="big good">&#9654; Play scale</button>
+        <button id="wStop" class="big danger">Stop</button>
+      </div>
+      <div class="status" id="wStatus">&nbsp;</div>
+    </div>
+  </section>
+
+  <section id="step-rhythm" class="hidden">
     <div class="panel">
       <h2>1. Build the rhythm</h2>
       <div class="note">Click a rhythm card to add it to the next free spot. A card must fit in the bar, so use <b>za</b> (rest) or a longer note to finish a bar.</div>
@@ -156,11 +193,39 @@
         <button id="dMelody" class="big good">&#9654; Play melody</button>
         <button id="dStop" class="big danger">Stop</button>
       </div>
+      <div class="ctrls" style="margin-top:10px;align-items:center">
+        <span class="pill" id="cntRhythm" style="font-size:15px;padding:7px 16px">Rhythm: played 0 of 3</span>
+        <span class="pill" id="cntMelody" style="font-size:15px;padding:7px 16px">Melody: played 0 of 3</span>
+        <label class="f" style="flex-direction:row;align-items:center;gap:6px">Plays allowed <input type="number" id="maxPlays" min="1" max="20" value="3"></label>
+        <button id="btnResetCounts">Reset counts</button>
+      </div>
       <div class="ctrls" style="margin-top:8px">
         <label class="chk"><input type="checkbox" id="optCount" checked> Count-in (4 beats)</label>
         <label class="chk"><input type="checkbox" id="optBeat" checked> Beat clicks in the melody</label>
       </div>
+      <div class="ctrls" style="margin-top:12px;align-items:flex-end">
+        <label class="f" style="min-width:230px">Tempo: <b id="dTempoVal">65</b> beats per minute
+          <input type="range" id="dTempo" min="40" max="140" value="65"></label>
+        <label class="f" style="min-width:200px">Low beat volume: <b id="dLowVal">70</b>
+          <input type="range" id="dLowVol" min="0" max="100" value="70"></label>
+        <label class="chk"><input type="checkbox" id="optLow" checked> Low beat under rhythm and melody</label>
+        <button id="dLowBtn" class="big">&#9654; Play low beat</button>
+      </div>
+      <div class="note" style="text-align:center;margin-top:6px">Tempo here is for this lesson only. It does not change the saved test. A change applies the next time you press play.</div>
       <div class="status" id="dStatus">&nbsp;</div>
+    </div>
+    <div class="panel">
+      <div class="row" style="justify-content:center">
+        <button id="exStep1">Example: rhythm in sticks</button>
+        <button id="exStep2">Example: add the solfa in the boxes</button>
+        <button id="exNew" class="good">New example</button>
+        <button id="exHide">Hide example</button>
+      </div>
+      <div id="exBox" class="exwrap hidden">
+        <div class="excap">This example is what it should look like</div>
+        <div class="exhow" id="exHow"></div>
+        <div class="exrow" id="exTop"></div>
+      </div>
     </div>
     <div class="panel">
       <div class="row" style="justify-content:center;margin-bottom:10px">
@@ -210,7 +275,7 @@ var HOTKEYS = {d:0, r:1, m:2, f:3, s:4, l:5, t:6};
 /* ---------------- state ---------------- */
 var tests = [];            /* {id,name,bars,tempo,notes:[{d,rest,deg,g}]} */
 var curId = null;
-var step = 'rhythm';
+var step = 'warm';
 var sel = -1;              /* selected note index (melody step) */
 var gCounter = 0;
 var revealLevel = 0;       /* dictation: 0 hidden, 1 rhythm, 2 rhythm+solfa */
@@ -250,7 +315,7 @@ function newTest(){
   var n = tests.length + 1, id = 't' + Date.now() + Math.floor(Math.random()*1000);
   var yr = (cur() && cur().year) || 3;
   n = tests.filter(function(x){ return x.year === yr; }).length + 1;
-  var t = {id:id, name:'Test ' + n, year:yr, bars:4, tempo:65, notes:[]};
+  var t = {id:id, name:'Test ' + n, year:yr, bars:2, tempo:65, notes:[]};
   tests.push(t); curId = id; sel = -1;
   return t;
 }
@@ -316,14 +381,19 @@ function buildNotes(t, idxs, showPitch){
   });
 }
 
+function barsPerRow(el, t){
+  var avail = (el.clientWidth || 900) - 16, firstW = 400, barW = 340;
+  var perRow = Math.max(1, Math.min(t.bars, Math.floor((avail - firstW)/barW) + 1));
+  while (t.bars % perRow !== 0 && perRow > 2) perRow--;
+  return perRow;
+}
+
 /* opts: {showNotes, showPitch, showSolfa, clickable}. Returns the SVG group of each note, by note index. */
 function renderScore(el, t, opts){
   el.style.minHeight = el.offsetHeight + 'px';   /* hold the height so the page does not collapse and jump */
   el.textContent = '';
-  var avail = (el.clientWidth || 900) - 16;
   var firstW = 400, barW = 340;
-  var perRow = Math.max(1, Math.min(t.bars, Math.floor((avail - firstW)/barW) + 1));
-  while (t.bars % perRow !== 0 && perRow > 2) perRow--;
+  var perRow = barsPerRow(el, t);
   var rows = Math.ceil(t.bars/perRow);
   var width = 10 + firstW + (perRow-1)*barW + 14;
   var rowH = 170, height = rows*rowH + 20;
@@ -382,7 +452,17 @@ function renderScore(el, t, opts){
 }
 
 /* ---------------- views ---------------- */
-var edEls = [], dEls = [];
+var edEls = [], dEls = [], wEls = [];
+var wTempo = 70;
+function warmTest(dir){
+  var up = [0,1,2,3,4,5,6,7], down = [7,6,5,4,3,2,1,0], degs, notes = [];
+  degs = dir === 'up' ? up : dir === 'down' ? down : up.concat(down.slice(1));
+  degs.forEach(function(d, i){ notes.push({d:'q', rest:false, deg:d, g:i}); });
+  /* up and down: the final do is held, which fills the fourth bar */
+  if (dir === 'both') notes[notes.length-1].d = 'h';
+  var q = 0; notes.forEach(function(n){ q += DURS[n.d].q; });
+  return {bars:Math.ceil(q/BARQ - 1e-9), notes:notes, tempo:wTempo};
+}
 function refresh(){
   var keepY = window.scrollY, t = cur();
   $('yearSel').value = t.year;
@@ -394,12 +474,16 @@ function refresh(){
   $('barsNum').value = t.bars;
   $('tempoNum').value = t.tempo;
   renderChips();
-  $('edPanel').classList.toggle('hidden', step === 'dictate');
-  ['rhythm','melody','dictate'].forEach(function(s){
+  $('edPanel').classList.toggle('hidden', step !== 'rhythm' && step !== 'melody');
+  ['warm','rhythm','melody','dictate'].forEach(function(s){
     $('step-' + s).classList.toggle('hidden', s !== step);
   });
   document.querySelectorAll('.tab').forEach(function(b){ b.classList.toggle('active', b.dataset.step === step); });
 
+  if (step === 'warm'){
+    wEls = renderScore($('wScore'), warmTest($('wDir').value), {showNotes:true, showPitch:true, showSolfa:true});
+    $('wTempo').value = wTempo; $('wTempoVal').textContent = wTempo;
+  }
   if (step === 'rhythm' || step === 'melody'){
     var melody = step === 'melody';
     if (melody && (sel < 0 || !t.notes[sel] || t.notes[sel].rest)) sel = nextSounding(t, -1);
@@ -413,6 +497,10 @@ function refresh(){
     if (!melody) renderBarBoxes(t);
   }
   if (step === 'dictate'){
+    if (playsFor !== curId){ plays = {rhythm:0, melody:0}; playsFor = curId; }
+    updateCounts();
+    if (dTempoFor !== curId){ dTempo = t.tempo; dTempoFor = curId; }
+    $('dTempo').value = dTempo; $('dTempoVal').textContent = dTempo;
     $('dName').textContent = 'Year ' + t.year + ' · ' + t.name;
     dEls = renderScore($('dScore'), t, {showNotes:revealLevel > 0, showPitch:revealLevel > 1, showSolfa:revealLevel > 1});
     buildBeatDots(t);
@@ -456,22 +544,50 @@ function flash(m){
 }
 function buildBeatDots(t){
   var host = $('dBeats'); host.textContent = '';
+  var row = document.createElement('div'); row.className = 'brow'; host.appendChild(row);   /* one line for every bar */
   for (var b = 0; b < t.bars; b++){
-    var g = document.createElement('div'); g.className = 'bargrp';
     for (var k = 0; k < 4; k++){
-      var d = document.createElement('div'); d.className = 'dot'; d.id = 'dot' + (b*4+k); d.textContent = k+1;
-      g.appendChild(d);
+      var d = document.createElement('div');
+      d.className = 'dot' + (k === 0 ? ' barstart' : '') + ((k === 3 && b === t.bars - 1) ? ' rowend' : '');
+      d.id = 'dot' + (b*4+k); d.textContent = k+1;
+      row.appendChild(d);
     }
-    host.appendChild(g);
   }
 }
 
 /* ---------------- audio ---------------- */
-var AC = null, playToken = 0, rafId = 0;
+var AC = null, playToken = 0, rafId = 0, lowTimer = 0;
+var dTempo = 65, dTempoFor = null, plays = {rhythm:0, melody:0}, playsFor = null;
+/* One AudioContext for the whole session (never rebuilt, so no start-up delay). Each play gets its own
+   master gain; stopping just disconnects it, which silences everything already scheduled. */
+var master = null;
 function ctxA(){
-  if (!AC) AC = new (window.AudioContext || window.webkitAudioContext)();
+  if (!AC) AC = new (window.AudioContext || window.webkitAudioContext)({latencyHint:'interactive'});
   if (AC.state === 'suspended') AC.resume();
   return AC;
+}
+function ready(cb){            /* run cb only once the clock is actually running */
+  var c = ctxA();
+  if (c.state === 'running') cb(c); else c.resume().then(function(){ cb(c); });
+}
+function out(){
+  if (!master){ master = AC.createGain(); master.connect(AC.destination); }
+  return master;
+}
+function seenTime(c){          /* what the listener is hearing now, so lights match the sound */
+  return c.currentTime - (c.outputLatency || c.baseLatency || 0);
+}
+function kick(at, accent){
+  var vol = (parseInt($('dLowVol').value, 10) || 0) / 100;
+  if (vol <= 0) return;
+  var c = AC, o = c.createOscillator(), g = c.createGain();
+  o.type = 'sine';
+  o.frequency.setValueAtTime(accent ? 135 : 115, at);
+  o.frequency.exponentialRampToValueAtTime(48, at + 0.14);
+  g.gain.setValueAtTime(0.0001, at);
+  g.gain.exponentialRampToValueAtTime(Math.max(0.001, vol * (accent ? 1.0 : 0.8)), at + 0.008);
+  g.gain.exponentialRampToValueAtTime(0.0001, at + 0.32);
+  o.connect(g); g.connect(out()); o.start(at); o.stop(at + 0.35);
 }
 function click(at, accent, kind){
   var c = AC, o = c.createOscillator(), g = c.createGain();
@@ -480,44 +596,58 @@ function click(at, accent, kind){
   g.gain.setValueAtTime(0.0001, at);
   g.gain.exponentialRampToValueAtTime(kind === 'wood' ? 0.55 : (accent ? 0.5 : 0.3), at + 0.003);
   g.gain.exponentialRampToValueAtTime(0.0001, at + 0.07);
-  o.connect(g); g.connect(c.destination); o.start(at); o.stop(at + 0.09);
+  o.connect(g); g.connect(out()); o.start(at); o.stop(at + 0.09);
 }
 function tone(at, freq, dur){
   var c = AC, g = c.createGain();
+  /* attack, short decay to a sustain, release at the end; times strictly increasing even for 16ths */
+  var tA = at + 0.01, tD = at + Math.max(0.02, Math.min(0.15, dur*0.4)),
+      tR = at + Math.max(tD - at + 0.005, dur - 0.04), tE = at + Math.max(dur, tR - at + 0.01);
   g.gain.setValueAtTime(0.0001, at);
-  g.gain.exponentialRampToValueAtTime(0.4, at + 0.015);
-  g.gain.exponentialRampToValueAtTime(0.18, at + Math.min(0.25, dur*0.5));
-  g.gain.setValueAtTime(0.18, at + Math.max(0.02, dur - 0.06));
-  g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
-  g.connect(c.destination);
+  g.gain.exponentialRampToValueAtTime(0.4, tA);
+  g.gain.exponentialRampToValueAtTime(0.2, tD);
+  g.gain.setValueAtTime(0.2, tR);
+  g.gain.exponentialRampToValueAtTime(0.0001, tE);
+  g.connect(out());
   [[1,'triangle',1],[2,'sine',0.25],[3,'sine',0.1]].forEach(function(p){
     var o = c.createOscillator(), og = c.createGain();
     o.type = p[1]; o.frequency.value = freq*p[0]; og.gain.value = p[2];
-    o.connect(og); og.connect(g); o.start(at); o.stop(at + dur + 0.02);
+    o.connect(og); og.connect(g); o.start(at); o.stop(tE + 0.02);
   });
 }
+function setStatus(m){ $(step === 'warm' ? 'wStatus' : 'dStatus').textContent = m; }
 function clearLights(){
   document.querySelectorAll('.dot.on').forEach(function(d){ d.classList.remove('on','count'); });
-  [edEls, dEls].forEach(function(arr){ (arr || []).forEach(function(g){ if (g) g.classList.remove('hl'); }); });
+  [edEls, dEls, wEls].forEach(function(arr){ (arr || []).forEach(function(g){ if (g) g.classList.remove('hl'); }); });
 }
 function stopAll(){
-  playToken++; cancelAnimationFrame(rafId);
-  if (AC){ try{ AC.close(); }catch(e){} AC = null; }
+  playToken++; cancelAnimationFrame(rafId); clearInterval(lowTimer); lowTimer = 0;
+  $('dLowBtn').textContent = '▶ Play low beat'; $('wStatus').textContent = ' '; $('dStatus').textContent = ' ';
+  if (master){ try{ master.disconnect(); }catch(e){} master = null; }
   clearLights();
-  $('dStatus').textContent = ' ';
+  setStatus(' ');
 }
 
 /* Everything is scheduled on the audio clock up front; rAF only reads the clock to light things. */
 function play(mode, opts){
   stopAll();
-  var t = cur(), c = ctxA(), token = playToken;
-  var spb = 60 / t.tempo, t0 = c.currentTime + 0.15;
+  var token = playToken;
+  setStatus('Starting...');
+  ready(function(c){ if (token === playToken) schedulePlay(c, token, mode, opts); });
+}
+function schedulePlay(c, token, mode, opts){
+  var t = opts.test || cur();
+  var spb = 60 / (opts.tempo || (step === 'dictate' ? dTempo : t.tempo)), t0 = c.currentTime + 0.12;
   var counts = opts.count ? 4 : 0, sched = [], i;
   for (i = 0; i < counts; i++){
     click(t0 + i*spb, i === 0, 'beat');
     sched.push({at:t0 + i*spb, end:t0 + (i+1)*spb, count:i});
   }
   var base = t0 + counts*spb, q = 0;
+  if (opts.low){
+    var nb = counts + Math.ceil(t.bars*4);
+    for (i = 0; i < nb; i++) kick(t0 + i*spb, i % 4 === 0);
+  }
   t.notes.forEach(function(n, ni){
     var at = base + q*spb, dur = DURS[n.d].q*spb;
     if (!n.rest){
@@ -536,7 +666,7 @@ function play(mode, opts){
   var lastNote = -2;
   (function frame(){
     if (token !== playToken) return;
-    var now = c.currentTime, note = -1, beat = -1, cnt = -1;
+    var now = seenTime(c), note = -1, beat = -1, cnt = -1;
     sched.forEach(function(s){
       if (now < s.at || now >= s.end) return;
       if (s.count !== undefined) cnt = s.count;
@@ -546,18 +676,89 @@ function play(mode, opts){
     document.querySelectorAll('.dot.on').forEach(function(d){ d.classList.remove('on','count'); });
     if (cnt >= 0){
       var cd = $('dot' + cnt); if (cd) cd.classList.add('on','count');
-      $('dStatus').textContent = 'Count in... ' + (cnt+1);
+      setStatus('Count in... ' + (cnt+1));
     } else if (beat >= 0){
       var dd = $('dot' + beat); if (dd) dd.classList.add('on');
-      $('dStatus').textContent = mode === 'rhythm' ? 'Listen to the rhythm' : 'Listen to the melody';
+      setStatus(mode === 'rhythm' ? 'Listen to the rhythm' : 'Listen to the melody');
     }
     if (note !== lastNote){
-      [edEls, dEls].forEach(function(arr){ (arr || []).forEach(function(g, k){ if (g) g.classList.toggle('hl', k === note); }); });
+      [edEls, dEls, wEls].forEach(function(arr){ (arr || []).forEach(function(g, k){ if (g) g.classList.toggle('hl', k === note); }); });
       lastNote = note;
     }
-    if (now > totalEnd + 0.1){ clearLights(); $('dStatus').textContent = 'Done'; return; }
+    if (now > totalEnd + 0.15){ clearLights(); setStatus('Done'); return; }
     rafId = requestAnimationFrame(frame);
   })();
+}
+
+/* ---------------- student example (fixed, not the test) ---------------- */
+var EXAMPLE = [   /* one entry per beat: stick type, solfa letters */
+  ['ta','m'], ['titi','s l'], ['ta','s'], ['za',''],
+  ['titi','m r'], ['ta','m'], ['tika','f m r d'], ['ta','d']
+];
+var SVGNS = 'http://www.w3.org/2000/svg';
+function svgEl(name, attrs){
+  var e = document.createElementNS(SVGNS, name);
+  Object.keys(attrs).forEach(function(k){ e.setAttribute(k, attrs[k]); });
+  return e;
+}
+/* Kodaly stick notation: a stem per note, beams joined across the top, a squiggle for the rest. */
+function stickSvg(kind){
+  var svg = svgEl('svg', {viewBox:'0 0 100 70', preserveAspectRatio:'xMidYMid meet'});
+  var line = {stroke:'currentColor', 'stroke-width':7, 'stroke-linecap':'round', fill:'none'};
+  function stem(x){ svg.appendChild(svgEl('line', Object.assign({x1:x, y1:8, x2:x, y2:62}, line))); }
+  function beam(x1, x2, y){ svg.appendChild(svgEl('line', Object.assign({x1:x1-3.5, y1:y, x2:x2+3.5, y2:y}, line))); }
+  if (kind === 'ta') stem(50);
+  else if (kind === 'titi'){ stem(30); stem(70); beam(30, 70, 8); }
+  else if (kind === 'tika'){ [11,37,63,89].forEach(stem); beam(11, 89, 8); beam(11, 89, 22); }
+  else if (kind === 'za'){
+    svg.appendChild(svgEl('path', Object.assign({d:'M32 12 L68 12 L32 60 L68 60'}, line, {'stroke-linejoin':'round'})));
+  }
+  return svg;
+}
+var exLevel = 0;
+function newExample(){            /* 8 beats = 2 bars of 4/4; solfa letters match the notes in each beat */
+  var types = ['ta','ta','ta','titi','titi','tika','za'], count = {ta:1, titi:2, tika:4, za:0};
+  var letters = 'drmfslt', beats = [], i;
+  for (i = 0; i < 8; i++){
+    var t;
+    do { t = types[Math.floor(Math.random()*types.length)]; } while (t === 'za' && (i === 0 || i === 7 || beats[i-1] === 'za'));
+    beats.push(t);
+  }
+  var total = 0; beats.forEach(function(t){ total += count[t]; });
+  var deg = [0,2,4][Math.floor(Math.random()*3)], seen = 0, out_ = [];
+  beats.forEach(function(t){
+    var ls = [];
+    for (var k = 0; k < count[t]; k++){
+      seen++;
+      if (seen === total) deg = 0;
+      else if (seen > 1){
+        var st = [-2,-1,-1,0,1,1,2][Math.floor(Math.random()*7)];
+        deg = Math.max(0, Math.min(6, deg + st));
+      }
+      ls.push(letters[deg]);
+    }
+    out_.push([t, ls.join(' ')]);
+  });
+  EXAMPLE = out_;
+}
+function showExample(level){
+  exLevel = level;
+  $('exBox').classList.toggle('hidden', level === 0);
+  if (!level) return;
+  $('exHow').textContent = level === 1
+    ? 'Step 1: write the rhythm in sticks in your booklet, one beat in each joined square. Eight squares, two bars.'
+    : 'Step 2: now write the solfa in letters under the sticks, inside the same box. (d r m f s l t)';
+  var host = $('exTop'); host.textContent = '';
+  EXAMPLE.forEach(function(e, i){
+    var c = document.createElement('div');
+    c.className = 'excell' + (i % 4 === 0 ? ' barstart' : '') + (i === 7 ? ' rowend' : '');
+    c.appendChild(stickSvg(e[0]));
+    var sl = document.createElement('div');
+    sl.className = 'exsol' + (e[1].length > 3 ? ' small' : '');
+    sl.textContent = level === 2 ? e[1] : '';
+    c.appendChild(sl);
+    host.appendChild(c);
+  });
 }
 
 /* ---------------- controls ---------------- */
@@ -609,8 +810,18 @@ function setSolfa(deg){
 }
 function go(s){
   stopAll(); step = s;
-  if (s === 'dictate') revealLevel = 0;
+  if (s === 'dictate'){ revealLevel = 0; dTempoFor = null; playsFor = null; }
   refresh();
+}
+function updateCounts(){
+  var max = Math.max(1, parseInt($('maxPlays').value, 10) || 3);
+  [['rhythm','cntRhythm','Rhythm','dRhythm'],['melody','cntMelody','Melody','dMelody']].forEach(function(r){
+    var spent = plays[r[0]] >= max, el = $(r[1]);
+    el.textContent = r[2] + ': played ' + plays[r[0]] + ' of ' + max + (spent ? ' (all used)' : '');
+    el.style.color = spent ? 'var(--danger)' : (plays[r[0]] ? 'var(--accent2)' : '');
+    el.style.borderColor = spent ? 'var(--danger)' : '';
+    $(r[3]).disabled = spent;
+  });
 }
 function melodyReady(){
   var t = cur();
@@ -635,7 +846,7 @@ $('btnDelTest').onclick = function(){
 function newTestInYear(yr){
   var prev = curId; curId = null;
   var n = tests.filter(function(x){ return x.year === yr; }).length + 1, id = 't' + Date.now() + Math.floor(Math.random()*1000);
-  tests.push({id:id, name:'Test ' + n, year:yr, bars:4, tempo:65, notes:[]}); curId = id; sel = -1;
+  tests.push({id:id, name:'Test ' + n, year:yr, bars:2, tempo:65, notes:[]}); curId = id; sel = -1;
 }
 $('yearSel').onchange = function(){
   stopAll(); var yr = parseInt(this.value, 10);
@@ -645,7 +856,7 @@ $('yearSel').onchange = function(){
 };
 $('testName').oninput = function(){ cur().name = this.value || 'Test'; renderChips(); save(); };
 $('barsNum').onchange = function(){
-  var t = cur(), v = Math.max(1, Math.min(8, parseInt(this.value, 10) || 4));
+  var t = cur(), v = Math.max(1, Math.min(8, parseInt(this.value, 10) || 2));
   var q = 0, keep = [];                  /* drop whole notes that fall beyond the new length */
   t.notes.forEach(function(n){ if (q + DURS[n.d].q <= v*BARQ + 1e-9){ keep.push(n); q += DURS[n.d].q; } });
   t.notes = keep; t.bars = v; sel = -1; refresh(); save();
@@ -675,15 +886,56 @@ function flashMelody(m){ var old = $('flashMsg'); if (old) old.remove();
   s.style.marginTop = '8px'; s.textContent = m; $('solfaRow').after(s);
   setTimeout(function(){ if (s.parentNode) s.remove(); }, 2500); }
 
-$('dDo').onclick = function(){ stopAll(); var c = ctxA(); tone(c.currentTime + 0.05, FREQ[0], 1.4); $('dStatus').textContent = 'do'; };
-$('dRhythm').onclick = function(){ play('rhythm', {count:$('optCount').checked}); };
+$('dDo').onclick = function(){ stopAll(); var c = ctxA(); tone(c.currentTime + 0.05, FREQ[0], 1.4); setStatus('do'); };
+$('dRhythm').onclick = function(){ plays.rhythm++; updateCounts(); play('rhythm', {count:$('optCount').checked, low:$('optLow').checked}); };
 $('dMelody').onclick = function(){
-  if (!melodyReady()){ $('dStatus').textContent = 'Add the solfa for every note in step 2 first.'; return; }
-  play('melody', {count:$('optCount').checked, beats:$('optBeat').checked});
+  if (!melodyReady()){ setStatus('Add the solfa for every note in step 2 first.'); return; }
+  plays.melody++; updateCounts();
+  play('melody', {count:$('optCount').checked, beats:$('optBeat').checked, low:$('optLow').checked});
 };
 $('dStop').onclick = stopAll;
+$('maxPlays').onchange = updateCounts;
+$('btnResetCounts').onclick = function(){ plays = {rhythm:0, melody:0}; updateCounts(); };
+$('dTempo').oninput = function(){ dTempo = parseInt(this.value, 10) || 65; $('dTempoVal').textContent = dTempo; };
+$('dLowVol').oninput = function(){ $('dLowVal').textContent = this.value; };
+$('dLowBtn').onclick = function(){
+  if (lowTimer){ stopAll(); return; }
+  stopAll();
+  var token = playToken;
+  ready(function(c){
+    if (token !== playToken) return;
+    var beat = 0, next = c.currentTime + 0.1, total = cur().bars * 4, shown = [];
+    $('dLowBtn').textContent = '■ Stop low beat';
+    function pump(){          /* keep ~0.5s of beats scheduled ahead on the audio clock */
+      while (next < c.currentTime + 0.5){
+        kick(next, beat % 4 === 0); shown.push({at:next, len:60/dTempo, i:beat % total});
+        beat++; next += 60 / dTempo;
+      }
+    }
+    pump(); lowTimer = setInterval(pump, 40);
+    (function frame(){
+      if (token !== playToken) return;
+      var now = seenTime(c), hit = -1;
+      shown = shown.filter(function(x){ return x.at + x.len > now - 0.5; });
+      shown.forEach(function(x){ if (x.at <= now && now < x.at + x.len) hit = x.i; });
+      document.querySelectorAll('.dot.on').forEach(function(d){ d.classList.remove('on','count'); });
+      if (hit >= 0){ var d = $('dot' + hit); if (d) d.classList.add('on'); }
+      setStatus('Low beat');
+      rafId = requestAnimationFrame(frame);
+    })();
+  });
+};
 $('rvRhythm').onclick = function(){ revealLevel = 1; refresh(); };
 $('rvSolfa').onclick = function(){ revealLevel = 2; refresh(); };
+$('wDir').onchange = function(){ stopAll(); refresh(); };
+$('wTempo').oninput = function(){ wTempo = parseInt(this.value, 10) || 70; $('wTempoVal').textContent = wTempo; };
+$('wPlay').onclick = function(){ play('melody', {count:$('wCount').checked, test:warmTest($('wDir').value), tempo:wTempo}); };
+$('wStop').onclick = stopAll;
+$('wDo').onclick = function(){ stopAll(); var c = ctxA(); tone(c.currentTime + 0.05, FREQ[0], 1.6); setStatus('do'); };
+$('exNew').onclick = function(){ newExample(); showExample(exLevel || 1); };
+$('exStep1').onclick = function(){ showExample(1); };
+$('exStep2').onclick = function(){ showExample(2); };
+$('exHide').onclick = function(){ showExample(0); };
 $('rvHide').onclick = function(){ revealLevel = 0; refresh(); };
 
 document.addEventListener('keydown', function(e){
