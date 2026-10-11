@@ -38,8 +38,8 @@
   .big{font-size:18px;padding:13px 26px}
   .chk{display:flex;align-items:center;gap:7px;font-size:14px;cursor:pointer}
   .chk input{width:17px;height:17px;accent-color:var(--accent)}
-  .score{background:#fff;border-radius:8px;padding:6px;overflow-x:auto;min-height:80px}
-  .score svg{display:block}
+  .score{background:#fff;border-radius:8px;padding:6px;overflow:hidden;min-height:80px}
+  .score svg{display:block;width:100% !important;height:auto !important;margin:0 auto}
   .score .hl *{fill:#e8590c !important;stroke:#e8590c !important}
   .score .sel *{fill:#1a73e8 !important;stroke:#1a73e8 !important}
   .score .vf-stavenote{cursor:pointer}
@@ -135,9 +135,9 @@
       <div class="score" id="wScore"></div>
       <div class="ctrls">
         <label class="f">Pattern
-          <select id="wDir"><option value="up">Up: do to do'</option><option value="down">Down: do' to do</option><option value="both">Up and down</option></select></label>
-        <label class="f" style="min-width:230px">Tempo: <b id="wTempoVal">70</b> beats per minute
-          <input type="range" id="wTempo" min="40" max="140" value="70"></label>
+          <select id="wDir"><option value="both" selected>Up and down</option><option value="up">Up: do to do'</option><option value="down">Down: do' to do</option></select></label>
+        <label class="f" style="min-width:230px">Tempo: <b id="wTempoVal">60</b> beats per minute
+          <input type="range" id="wTempo" min="40" max="140" value="60"></label>
         <label class="chk"><input type="checkbox" id="wCount" checked> Count-in (4 beats)</label>
       </div>
       <div class="ctrls">
@@ -393,12 +393,13 @@ function renderScore(el, t, opts){
   el.style.minHeight = el.offsetHeight + 'px';   /* hold the height so the page does not collapse and jump */
   el.textContent = '';
   var firstW = 400, barW = 340;
-  var perRow = barsPerRow(el, t);
+  var perRow = opts.perRow || barsPerRow(el, t);
   var rows = Math.ceil(t.bars/perRow);
   var width = 10 + firstW + (perRow-1)*barW + 14;
   var rowH = 170, height = rows*rowH + 20;
   var renderer = new VF.Renderer(el, VF.Renderer.Backends.SVG);
   renderer.resize(width, height);
+  el.querySelector('svg').style.maxWidth = width + 'px';   /* scale down to fit, never scroll */
   var ctx = renderer.getContext();
   var bars = splitBars(t), els = [];
 
@@ -453,13 +454,11 @@ function renderScore(el, t, opts){
 
 /* ---------------- views ---------------- */
 var edEls = [], dEls = [], wEls = [];
-var wTempo = 70;
+var wTempo = 60;
 function warmTest(dir){
   var up = [0,1,2,3,4,5,6,7], down = [7,6,5,4,3,2,1,0], degs, notes = [];
-  degs = dir === 'up' ? up : dir === 'down' ? down : up.concat(down.slice(1));
+  degs = dir === 'up' ? up : dir === 'down' ? down : up.concat(down);   /* each section is 2 bars */
   degs.forEach(function(d, i){ notes.push({d:'q', rest:false, deg:d, g:i}); });
-  /* up and down: the final do is held, which fills the fourth bar */
-  if (dir === 'both') notes[notes.length-1].d = 'h';
   var q = 0; notes.forEach(function(n){ q += DURS[n.d].q; });
   return {bars:Math.ceil(q/BARQ - 1e-9), notes:notes, tempo:wTempo};
 }
@@ -481,7 +480,7 @@ function refresh(){
   document.querySelectorAll('.tab').forEach(function(b){ b.classList.toggle('active', b.dataset.step === step); });
 
   if (step === 'warm'){
-    wEls = renderScore($('wScore'), warmTest($('wDir').value), {showNotes:true, showPitch:true, showSolfa:true});
+    wEls = renderScore($('wScore'), warmTest($('wDir').value), {showNotes:true, showPitch:true, showSolfa:true, perRow:2});
     $('wTempo').value = wTempo; $('wTempoVal').textContent = wTempo;
   }
   if (step === 'rhythm' || step === 'melody'){
@@ -928,7 +927,7 @@ $('dLowBtn').onclick = function(){
 $('rvRhythm').onclick = function(){ revealLevel = 1; refresh(); };
 $('rvSolfa').onclick = function(){ revealLevel = 2; refresh(); };
 $('wDir').onchange = function(){ stopAll(); refresh(); };
-$('wTempo').oninput = function(){ wTempo = parseInt(this.value, 10) || 70; $('wTempoVal').textContent = wTempo; };
+$('wTempo').oninput = function(){ wTempo = parseInt(this.value, 10) || 60; $('wTempoVal').textContent = wTempo; };
 $('wPlay').onclick = function(){ play('melody', {count:$('wCount').checked, test:warmTest($('wDir').value), tempo:wTempo}); };
 $('wStop').onclick = stopAll;
 $('wDo').onclick = function(){ stopAll(); var c = ctxA(); tone(c.currentTime + 0.05, FREQ[0], 1.6); setStatus('do'); };
