@@ -126,6 +126,13 @@
       <span class="pill" id="saveState">saved</span>
       <button id="btnDelTest" class="danger" style="margin-left:auto">Delete test</button>
     </div>
+    <div class="row" style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line)">
+      <label class="f">Class preset<select id="presetSel" style="min-width:190px"></select></label>
+      <button id="presetSave">Save as new preset</button>
+      <button id="presetUpdate">Update this preset</button>
+      <button id="presetDel" class="danger">Delete preset</button>
+      <span class="note" style="max-width:420px">Remembers the year, tempos, warm-up pattern, low beat, count-in and plays allowed for a class.</span>
+    </div>
   </div>
 
   <section id="step-warm">
@@ -284,7 +291,7 @@ function cur(){ return tests.filter(function(t){ return t.id === curId; })[0]; }
 function $(id){ return document.getElementById(id); }
 
 /* ---------------- storage (IndexedDB) ---------------- */
-var db = null, saveTimer = null;
+var db = null, saveTimer = null, presets = [], curPreset = null;
 function openDB(cb){
   var req;
   try{ req = indexedDB.open('solfa_dictation_task6', 1); }catch(e){ cb(); return; }
@@ -301,7 +308,7 @@ function dbGet(cb){
 function dbPut(){
   if (!db){ $('saveState').textContent = 'not saved (no storage)'; return; }
   var tx = db.transaction('kv', 'readwrite');
-  tx.objectStore('kv').put({tests:tests, curId:curId, gCounter:gCounter}, 'state');
+  tx.objectStore('kv').put({tests:tests, curId:curId, gCounter:gCounter, presets:presets, curPreset:curPreset}, 'state');
   tx.oncomplete = function(){ $('saveState').textContent = 'saved'; };
   tx.onerror = function(){ $('saveState').textContent = 'save failed'; };
 }
@@ -760,6 +767,56 @@ function showExample(level){
   });
 }
 
+/* ---------------- class presets ---------------- */
+function captureSettings(){
+  return {year:cur().year, dTempo:dTempo, wTempo:wTempo, wDir:$('wDir').value,
+    lowVol:parseInt($('dLowVol').value, 10), optLow:$('optLow').checked, optCount:$('optCount').checked,
+    optBeat:$('optBeat').checked, wCount:$('wCount').checked, maxPlays:parseInt($('maxPlays').value, 10) || 3};
+}
+function applySettings(p){
+  stopAll();
+  dTempo = p.dTempo; wTempo = p.wTempo;
+  $('wDir').value = p.wDir; $('dLowVol').value = p.lowVol; $('dLowVal').textContent = p.lowVol;
+  $('optLow').checked = p.optLow; $('optCount').checked = p.optCount; $('optBeat').checked = p.optBeat;
+  $('wCount').checked = p.wCount; $('maxPlays').value = p.maxPlays;
+  var same = tests.filter(function(t){ return t.year === p.year; });
+  if (cur().year !== p.year){ if (same.length) curId = same[0].id; else newTestInYear(p.year); sel = -1; }
+  dTempoFor = curId; plays = {rhythm:0, melody:0}; playsFor = curId; revealLevel = 0;
+  refresh();
+}
+function renderPresets(){
+  var sel_ = $('presetSel'); sel_.textContent = '';
+  var none = document.createElement('option'); none.value = ''; none.textContent = presets.length ? '(no preset)' : '(none saved yet)';
+  sel_.appendChild(none);
+  presets.forEach(function(p){
+    var o = document.createElement('option'); o.value = p.id; o.textContent = p.name; sel_.appendChild(o);
+  });
+  sel_.value = curPreset || '';
+  $('presetUpdate').disabled = $('presetDel').disabled = !curPreset;
+}
+$('presetSel').onchange = function(){
+  curPreset = this.value || null;
+  var p = presets.filter(function(x){ return x.id === curPreset; })[0];
+  if (p) applySettings(p.settings);
+  renderPresets(); save();
+};
+$('presetSave').onclick = function(){
+  var name = prompt('Name this class preset (for example 3B or Year 5 Mon):', '');
+  if (!name || !name.trim()) return;
+  var p = {id:'p' + Date.now(), name:name.trim(), settings:captureSettings()};
+  presets.push(p); curPreset = p.id; renderPresets(); save();
+};
+$('presetUpdate').onclick = function(){
+  var p = presets.filter(function(x){ return x.id === curPreset; })[0];
+  if (!p || !confirm('Replace the settings saved in "' + p.name + '" with the current ones?')) return;
+  p.settings = captureSettings(); save();
+};
+$('presetDel').onclick = function(){
+  var p = presets.filter(function(x){ return x.id === curPreset; })[0];
+  if (!p || !confirm('Delete the preset "' + p.name + '"?')) return;
+  presets = presets.filter(function(x){ return x.id !== curPreset; }); curPreset = null; renderPresets(); save();
+};
+
 /* ---------------- controls ---------------- */
 function buildPalette(){
   var host = $('palette');
@@ -958,8 +1015,11 @@ openDB(function(){
     if (s && s.tests && s.tests.length){
       tests = s.tests; tests.forEach(function(t){ if (!t.year) t.year = 3; }); curId = s.curId; gCounter = s.gCounter || 0;
       if (!cur()) curId = tests[0].id;
+      presets = s.presets || []; curPreset = s.curPreset || null;
     } else { newTest(); }
-    refresh();
+    refresh(); renderPresets();
+    var lp = presets.filter(function(x){ return x.id === curPreset; })[0];
+    if (lp) applySettings(lp.settings);
   });
 });
 </script>
