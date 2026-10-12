@@ -134,6 +134,12 @@
       <button id="presetDel" class="danger">Delete preset</button>
       <span class="note" style="max-width:420px">Remembers the year, tempos, warm-up pattern, low beat, count-in and plays allowed for a class.</span>
     </div>
+    <div class="row" style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line)">
+      <button id="btnExport">Export all tests (.json)</button>
+      <button id="btnImport">Import tests (.json)</button>
+      <input type="file" id="importFile" accept=".json,application/json" class="hidden">
+      <span class="note" style="max-width:520px">Tests are stored in this browser only. Export them to keep a backup or move them to another computer.</span>
+    </div>
   </div>
 
   <section id="step-warm">
@@ -177,10 +183,11 @@
   <section id="step-melody" class="hidden">
     <div class="panel">
       <h2>2. Add the solfa melody</h2>
-      <div class="note">Click a note on the staff (it turns blue), then pick its solfa. After each choice the blue note moves on by itself. Keys: <b>d r m f s l t</b>, and <b>Shift+D</b> for high do'.</div>
+      <div class="note">Click a note on the staff (it turns blue), then pick its solfa. After each choice the blue note moves on by itself. Keys: <b>d r m f s l t</b>, and <b>Shift+D</b> for high do'. <b>Backspace</b> or Undo last note removes the last solfa you added.</div>
       <div class="ptitle">Solfa bank</div>
       <div class="solfarow" id="solfaRow"></div>
       <div class="row" style="margin-top:12px">
+        <button id="btnUndoSolfa">Undo last note</button>
         <button id="btnRandMelody">Random melody</button>
         <button id="btnClearMelody" class="danger">Clear melody</button>
         <button id="btnHearMelody" class="good">&#9654; Hear melody</button>
@@ -250,6 +257,7 @@
   </div>
 </main>
 
+<script id="embeddedState" type="application/json">null</script>
 <script>
 var VF = Vex.Flow;
 
@@ -787,6 +795,33 @@ function showExample(level){
   });
 }
 
+/* ---------------- export / import ---------------- */
+function adoptState(st){
+  tests = st.tests; presets = st.presets || []; curPreset = st.curPreset || null;
+  tests.forEach(function(t){ if (!t.year) t.year = 3; if (!t.bars) t.bars = 2; if (!t.tempo) t.tempo = 65; });
+  gCounter = Math.max(gCounter, st.gCounter || 0);
+  ensureSlots();
+  if (!cur()) curId = tests[0].id;
+}
+$('btnExport').onclick = function(){
+  var blob = new Blob([JSON.stringify({app:'solfa_dictation', version:1, tests:tests, presets:presets, curPreset:curPreset, gCounter:gCounter}, null, 1)], {type:'application/json'});
+  var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'solfa_dictation_tests.json';
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(function(){ URL.revokeObjectURL(a.href); }, 1000);
+};
+$('btnImport').onclick = function(){ $('importFile').click(); };
+$('importFile').onchange = function(){
+  var f = this.files[0]; this.value = ''; if (!f) return;
+  var r = new FileReader();
+  r.onload = function(){
+    var st;
+    try{ st = JSON.parse(r.result); }catch(e){ alert('That file is not a Solfa Dictation export.'); return; }
+    if (!st || st.app !== 'solfa_dictation' || !Array.isArray(st.tests)){ alert('That file is not a Solfa Dictation export.'); return; }
+    if (!confirm('Replace the tests and presets in this browser with the ' + st.tests.length + ' tests in the file?')) return;
+    stopAll(); adoptState(st); sel = -1; revealLevel = 0; refresh(); renderPresets(); save();
+  };
+  r.readAsText(f);
+};
+
 /* ---------------- class presets ---------------- */
 function captureSettings(){
   return {year:cur().year, dTempo:dTempo, wTempo:wTempo, wDir:$('wDir').value,
@@ -884,6 +919,14 @@ function setSolfa(deg){
   refresh(); save();
   var c = ctxA(); tone(c.currentTime + 0.02, FREQ[deg], 0.5);   /* audition the note just chosen */
 }
+function undoSolfa(){            /* clear the solfa of the last note that has one, and select it again */
+  var t = cur();
+  for (var i = t.notes.length - 1; i >= 0; i--){
+    if (!t.notes[i].rest && t.notes[i].deg !== null){
+      t.notes[i].deg = null; sel = i; stopAll(); refresh(); save(); return;
+    }
+  }
+}
 function go(s){
   stopAll(); step = s;
   if (s === 'dictate'){ revealLevel = 0; dTempoFor = null; playsFor = null; }
@@ -950,6 +993,7 @@ $('btnClearRhythm').onclick = function(){
   stopAll(); cur().notes = []; sel = -1; refresh(); save();
 };
 $('btnRandRhythm').onclick = function(){ randomRhythm(cur()); refresh(); save(); };
+$('btnUndoSolfa').onclick = undoSolfa;
 $('btnClearMelody').onclick = function(){ if (!confirm('Clear all the solfa from the melody?')) return; cur().notes.forEach(function(n){ n.deg = null; }); sel = -1; refresh(); save(); };
 $('btnRandMelody').onclick = function(){ randomMelody(cur()); sel = -1; refresh(); save(); };
 $('btnHearRhythm').onclick = function(){ play('rhythm', {count:true}); };
@@ -1018,7 +1062,8 @@ document.addEventListener('keydown', function(e){
   if (step !== 'melody' || /INPUT|SELECT|TEXTAREA/.test(e.target.tagName || '')) return;
   if (e.ctrlKey || e.metaKey || e.altKey) return;
   var k = e.key.toLowerCase();
-  if (k === 'd' && e.shiftKey){ setSolfa(7); e.preventDefault(); }
+  if (e.key === 'Backspace'){ undoSolfa(); e.preventDefault(); }
+  else if (k === 'd' && e.shiftKey){ setSolfa(7); e.preventDefault(); }
   else if (HOTKEYS[k] !== undefined && !e.shiftKey){ setSolfa(HOTKEYS[k]); e.preventDefault(); }
   else if (e.key === 'ArrowRight'){ var n = nextSounding(cur(), sel); if (n >= 0){ sel = n; refresh(); } }
   else if (e.key === 'ArrowLeft'){
@@ -1032,7 +1077,12 @@ window.addEventListener('resize', function(){ clearTimeout(rzTimer); rzTimer = s
 buildPalette(); buildSolfa();
 openDB(function(){
   dbGet(function(s){
-    if (s && s.tests && s.tests.length){
+    var emb = null;
+    try{ emb = JSON.parse($('embeddedState').textContent); }catch(e){}
+    var hasWork = s && s.tests && s.tests.some(function(t){ return t.notes && t.notes.length; });
+    if (emb && emb.tests && emb.tests.length && !hasWork){      /* fresh browser: start from the built-in tests */
+      adoptState(emb);
+    } else if (s && s.tests && s.tests.length){
       tests = s.tests; tests.forEach(function(t){ if (!t.year) t.year = 3; }); curId = s.curId; gCounter = s.gCounter || 0;
       if (!cur()) curId = tests[0].id;
       presets = s.presets || []; curPreset = s.curPreset || null;
