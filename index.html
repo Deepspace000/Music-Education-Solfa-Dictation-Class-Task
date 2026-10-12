@@ -52,6 +52,7 @@
   .chips{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
   .chip{padding:7px 14px;border-radius:99px;border:1px solid var(--line);background:#0e1b22;
     color:var(--dim);cursor:pointer;font-size:13px;font-family:inherit}
+  .chip.empty{border-style:dashed}
   .chip.on{background:var(--accent);color:#12232b;border-color:var(--accent);font-weight:bold}
 
   .palette{display:flex;gap:8px;flex-wrap:wrap}
@@ -318,12 +319,31 @@ function save(){
   saveTimer = setTimeout(dbPut, 250);
 }
 
+/* Every year (3 to 6) always has at least 4 slots, "Test 1".."Test 4"; extra tests can still be added. */
+var YEARS = [3,4,5,6], SLOTS = 4;
+function lowestFreeName(yr){
+  var used = {}; tests.forEach(function(t){ if (t.year === yr) used[t.name] = true; });
+  for (var k = 1; k < 100; k++) if (!used['Test ' + k]) return 'Test ' + k;
+  return 'Test';
+}
+function ensureSlots(){
+  YEARS.forEach(function(yr){
+    while (tests.filter(function(t){ return t.year === yr; }).length < SLOTS){
+      tests.push({id:'t' + Date.now() + Math.floor(Math.random()*100000), name:lowestFreeName(yr), year:yr, bars:2, tempo:65, notes:[]});
+    }
+  });
+  var keyed = tests.map(function(t, i){
+    var m = /^Test (\d+)$/.exec(t.name);
+    return {t:t, k:t.year*100000 + (m ? +m[1] : 1000 + i)};
+  });
+  keyed.sort(function(a, b){ return a.k - b.k; });
+  tests = keyed.map(function(x){ return x.t; });
+}
 function newTest(){
   var n = tests.length + 1, id = 't' + Date.now() + Math.floor(Math.random()*1000);
   var yr = (cur() && cur().year) || 3;
-  n = tests.filter(function(x){ return x.year === yr; }).length + 1;
-  var t = {id:id, name:'Test ' + n, year:yr, bars:2, tempo:65, notes:[]};
-  tests.push(t); curId = id; sel = -1;
+  var t = {id:id, name:lowestFreeName(yr), year:yr, bars:2, tempo:65, notes:[]};
+  tests.push(t); curId = id; sel = -1; ensureSlots();
   return t;
 }
 
@@ -523,7 +543,7 @@ function renderChips(){
   var c = $('testChips'); c.textContent = '';
   tests.filter(function(x){ return x.year === cur().year; }).forEach(function(t){
     var b = document.createElement('button');
-    b.className = 'chip' + (t.id === curId ? ' on' : '');
+    b.className = 'chip' + (t.id === curId ? ' on' : '') + (t.notes.length ? '' : ' empty');
     b.textContent = t.name;
     b.onclick = function(){ stopAll(); curId = t.id; sel = -1; revealLevel = 0; refresh(); save(); };
     c.appendChild(b);
@@ -894,15 +914,15 @@ $('btnDelTest').onclick = function(){
   stopAll();
   var yr = cur().year, gone = curId;
   tests = tests.filter(function(t){ return t.id !== gone; });
+  ensureSlots();                         /* a deleted slot is replaced by a fresh empty one */
   var same = tests.filter(function(t){ return t.year === yr; });
-  if (same.length) curId = same[0].id;
-  else newTestInYear(yr);
+  curId = same[0].id;
   sel = -1; refresh(); save();
 };
 function newTestInYear(yr){
   var prev = curId; curId = null;
-  var n = tests.filter(function(x){ return x.year === yr; }).length + 1, id = 't' + Date.now() + Math.floor(Math.random()*1000);
-  tests.push({id:id, name:'Test ' + n, year:yr, bars:2, tempo:65, notes:[]}); curId = id; sel = -1;
+  var id = 't' + Date.now() + Math.floor(Math.random()*1000);
+  tests.push({id:id, name:lowestFreeName(yr), year:yr, bars:2, tempo:65, notes:[]}); curId = id; sel = -1; ensureSlots();
 }
 $('yearSel').onchange = function(){
   stopAll(); var yr = parseInt(this.value, 10);
@@ -1017,7 +1037,7 @@ openDB(function(){
       if (!cur()) curId = tests[0].id;
       presets = s.presets || []; curPreset = s.curPreset || null;
     } else { newTest(); }
-    refresh(); renderPresets();
+    ensureSlots(); refresh(); renderPresets(); save();
     var lp = presets.filter(function(x){ return x.id === curPreset; })[0];
     if (lp) applySettings(lp.settings);
   });
