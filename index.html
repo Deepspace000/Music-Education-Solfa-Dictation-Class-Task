@@ -1105,6 +1105,15 @@ $('rvNextS').onclick = function(){
 $('rvRhythm').onclick = function(){ revN = cur().notes.length; refresh(); };
 $('rvSolfa').onclick = function(){ var t = cur(); revN = t.notes.length; revS = soundIn(t, t.notes.length); refresh(); };
 $('rvHide').onclick = function(){ revN = 0; revS = 0; refresh(); };
+$('wDir').onchange = function(){ stopAll(); refresh(); };
+$('wTempo').oninput = function(){ wTempo = parseInt(this.value, 10) || 60; $('wTempoVal').textContent = wTempo; };
+$('wPlay').onclick = function(){ play('melody', {count:$('wCount').checked, test:warmTest($('wDir').value), tempo:wTempo}); };
+$('wStop').onclick = stopAll;
+$('wDo').onclick = function(){ stopAll(); var c = ctxA(); tone(c.currentTime + 0.05, FREQ[0], 1.6); setStatus('do'); };
+$('exNew').onclick = function(){ newExample(); showExample(exLevel || 1); };
+$('exStep1').onclick = function(){ showExample(1); };
+$('exStep2').onclick = function(){ showExample(2); };
+$('exHide').onclick = function(){ showExample(0); };
 
 document.addEventListener('keydown', function(e){
   if (step !== 'melody' || /INPUT|SELECT|TEXTAREA/.test(e.target.tagName || '')) return;
