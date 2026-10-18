@@ -623,10 +623,18 @@ function buildBeatDots(t){
 var AC = null, playToken = 0, rafId = 0, lowTimer = 0;
 var dTempo = 50, dTempoFor = null, plays = {rhythm:0, melody:0}, playsFor = null;
 /* One AudioContext for the whole session (never rebuilt, so no start-up delay). Each play gets its own
-   master gain; stopping just disconnects it, which silences everything already scheduled. */
+   master gain; stopping just disconnects it, which silences everything already scheduled.
+
+   Built to be light, because it is used live with a class:
+   - the clicks and the low-beat thump are pre-made short samples, so each hit is a single cheap
+     playback node instead of a freshly synthesised oscillator + envelope
+   - each melody note is ONE oscillator with a built-in rich waveform (it used to be three)
+   - everything ends in a gentle soft clipper, so sounds layering up can never harshly clip
+   - the audio is started on the first click anywhere, so the first Play has no warm-up gap
+   - the beat lights follow the audio clock smoothly instead of in coarse steps               */
 var master = null;
 function ctxA(){
-  if (!AC) AC = new (window.AudioContext || window.webkitAudioContext)({latencyHint:'playback'});   /* a bigger buffer: steadier on busy or Bluetooth setups */
+  if (!AC) AC = new (window.AudioContext || window.webkitAudioContext)({latencyHint:'playback'});   /* big buffer: steadiest */
   if (AC.state === 'suspended') AC.resume();
   return AC;
 }
@@ -634,14 +642,13 @@ function ready(cb){            /* run cb only once the clock is actually running
   var c = ctxA();
   if (c.state === 'running') cb(c); else c.resume().then(function(){ cb(c); });
 }
-/* Everything plays through one gain and a limiter, so layered sounds (count-in, low beat, clicks,
-   melody) can never add up past full scale; that sum is what used to clip and sound distorted. */
 function busFor(c){
   if (!c.__bus){
-    var g = c.createGain(); g.gain.value = 0.75;
-    var lim = c.createDynamicsCompressor();
-    lim.threshold.value = -14; lim.knee.value = 10; lim.ratio.value = 10; lim.attack.value = 0.002; lim.release.value = 0.12;
-    g.connect(lim); lim.connect(c.destination);
+    var g = c.createGain(); g.gain.value = 0.8;
+    var sat = c.createWaveShaper(), n = 2048, curve = new Float32Array(n);
+    for (var i = 0; i < n; i++){ var x = i / (n - 1) * 2 - 1; curve[i] = Math.tanh(1.6 * x) / Math.tanh(1.6); }
+    sat.curve = curve;
+    g.connect(sat); sat.connect(c.destination);
     c.__bus = g;
   }
   return c.__bus;
@@ -650,48 +657,87 @@ function out(){
   if (!master){ master = AC.createGain(); master.connect(busFor(AC)); }
   return master;
 }
-function seenTime(c){          /* what the listener is hearing now, so lights match the sound */
+/* what the listener is hearing right now. getOutputTimestamp gives the audio position at a real clock time,
+   so we can interpolate smoothly (currentTime alone moves in jumps of a whole audio buffer). */
+function seenTime(c){
+  try {
+    var ts = c.getOutputTimestamp();
+    if (ts && ts.performanceTime > 0) return ts.contextTime + (performance.now() - ts.performanceTime) / 1000;
+  } catch (e) {}
   return c.currentTime - (c.outputLatency || c.baseLatency || 0);
+}
+
+/* pre-made samples: wood tick, beat click (normal and accented), low thump (normal and accented) */
+function sampleBuf(c, name, secs, fn){
+  if (!c.__bufs) c.__bufs = {};
+  if (c.__bufs[name]) return c.__bufs[name];
+  var sr = c.sampleRate, len = Math.ceil(secs * sr), buf = c.createBuffer(1, len, sr), d = buf.getChannelData(0);
+  fn(d, sr, len);
+  return (c.__bufs[name] = buf);
+}
+function clickBuf(c, kind, accent){
+  var name = 'click_' + kind + (accent ? 'A' : '');
+  return sampleBuf(c, name, 0.09, function(d, sr, len){
+    var f = kind === 'wood' ? 1300 : (accent ? 1250 : 850), peak = kind === 'wood' ? 0.42 : (accent ? 0.36 : 0.22);
+    for (var i = 0; i < len; i++){
+      var t = i / sr, env = Math.min(1, t / 0.003) * Math.exp(-t * 60);
+      var ph = 2 * Math.PI * f * t;
+      d[i] = peak * env * (kind === 'wood' ? (Math.sin(ph) + 0.25 * Math.sin(2 * ph)) / 1.25 : Math.sin(ph));
+    }
+  });
+}
+function kickBuf(c, accent){
+  /* a deep thump that still comes out of laptop speakers: it settles at 70 Hz, not lower */
+  return sampleBuf(c, 'kick' + (accent ? 'A' : ''), 0.32, function(d, sr, len){
+    var f0 = accent ? 150 : 130, ph = 0, peak = accent ? 0.62 : 0.5;
+    for (var i = 0; i < len; i++){
+      var t = i / sr, f = 70 + (f0 - 70) * Math.exp(-t / 0.035);
+      ph += 2 * Math.PI * f / sr;
+      d[i] = peak * Math.min(1, t / 0.008) * Math.exp(-t * 14) * Math.sin(ph);
+    }
+  });
+}
+function playBuf(c, buf, at, gain){
+  var s = c.createBufferSource(); s.buffer = buf;
+  if (gain !== undefined && gain !== 1){ var g = c.createGain(); g.gain.value = gain; s.connect(g); g.connect(out()); }
+  else s.connect(out());
+  s.start(at);
 }
 function kick(at, accent){
   var vol = (parseInt($('dLowVol').value, 10) || 0) / 100;
   if (vol <= 0) return;
-  var c = AC, o = c.createOscillator(), g = c.createGain();
-  o.type = 'sine';
-  /* a deep thump that still comes out of laptop speakers: it stops at 70 Hz, not 48 */
-  o.frequency.setValueAtTime(accent ? 150 : 130, at);
-  o.frequency.exponentialRampToValueAtTime(70, at + 0.12);
-  g.gain.setValueAtTime(0.0001, at);
-  g.gain.exponentialRampToValueAtTime(Math.max(0.001, vol * (accent ? 0.62 : 0.5)), at + 0.008);
-  g.gain.exponentialRampToValueAtTime(0.0001, at + 0.28);
-  o.connect(g); g.connect(out()); o.start(at); o.stop(at + 0.3);
+  playBuf(AC, kickBuf(AC, accent), at, vol);
 }
-function click(at, accent, kind){
-  var c = AC, o = c.createOscillator(), g = c.createGain();
-  o.type = kind === 'wood' ? 'triangle' : 'sine';          /* a square wave is harsh and buzzy; triangle is a softer tick */
-  o.frequency.value = kind === 'wood' ? 1300 : (accent ? 1250 : 850);
-  g.gain.setValueAtTime(0.0001, at);
-  g.gain.exponentialRampToValueAtTime(kind === 'wood' ? 0.42 : (accent ? 0.36 : 0.22), at + 0.003);
-  g.gain.exponentialRampToValueAtTime(0.0001, at + 0.07);
-  o.connect(g); g.connect(out()); o.start(at); o.stop(at + 0.09);
+function click(at, accent, kind){ playBuf(AC, clickBuf(AC, kind === 'wood' ? 'wood' : 'beat', accent), at); }
+
+/* a melody note: one oscillator, soft triangle-like tone with a little octave and fifth in it */
+function toneWave(c){
+  if (!c.__wave){
+    var imag = new Float32Array([0, 1, 0.2, -0.111 + 0.06, 0, 0.04, 0, -0.0204]);   /* triangle + octave + 12th */
+    c.__wave = c.createPeriodicWave(new Float32Array(imag.length), imag);
+  }
+  return c.__wave;
 }
 function tone(at, freq, dur){
-  var c = AC, g = c.createGain();
+  var c = AC, g = c.createGain(), o = c.createOscillator();
   /* attack, short decay to a sustain, release at the end; times strictly increasing even for 16ths */
   var tA = at + 0.01, tD = at + Math.max(0.02, Math.min(0.15, dur*0.4)),
       tR = at + Math.max(tD - at + 0.005, dur - 0.04), tE = at + Math.max(dur, tR - at + 0.01);
   g.gain.setValueAtTime(0.0001, at);
-  g.gain.exponentialRampToValueAtTime(0.3, tA);
-  g.gain.exponentialRampToValueAtTime(0.15, tD);
-  g.gain.setValueAtTime(0.15, tR);
+  g.gain.exponentialRampToValueAtTime(0.34, tA);
+  g.gain.exponentialRampToValueAtTime(0.17, tD);
+  g.gain.setValueAtTime(0.17, tR);
   g.gain.exponentialRampToValueAtTime(0.0001, tE);
-  g.connect(out());
-  [[1,'triangle',1],[2,'sine',0.2],[3,'sine',0.06]].forEach(function(p){
-    var o = c.createOscillator(), og = c.createGain();
-    o.type = p[1]; o.frequency.value = freq*p[0]; og.gain.value = p[2];
-    o.connect(og); og.connect(g); o.start(at); o.stop(tE + 0.02);
-  });
+  o.setPeriodicWave(toneWave(c)); o.frequency.value = freq;
+  o.connect(g); g.connect(out());
+  o.start(at); o.stop(tE + 0.02);
 }
+
+/* get the audio ready on the very first touch anywhere on the page */
+function warmAudio(){
+  try { var c = ctxA(); busFor(c); clickBuf(c, 'wood', false); clickBuf(c, 'beat', false); clickBuf(c, 'beat', true); kickBuf(c, false); kickBuf(c, true); toneWave(c); } catch (e) {}
+}
+['pointerdown', 'keydown', 'touchstart'].forEach(function(ev){ document.addEventListener(ev, warmAudio, {capture:true, passive:true}); });
 function setStatus(m){ var el = $(step === 'warm' ? 'wStatus' : 'dStatus'); if (el.textContent !== m) el.textContent = m; }   /* no rewrite when unchanged */
 function clearLights(){
   document.querySelectorAll('.dot.cvis').forEach(function(d){ d.classList.remove('cvis'); });
@@ -715,7 +761,8 @@ function play(mode, opts){
 }
 function schedulePlay(c, token, mode, opts){
   var t = opts.test || cur();
-  var spb = 60 / (opts.tempo || (step === 'dictate' ? dTempo : t.tempo)), t0 = c.currentTime + 0.12;
+  var spb = 60 / (opts.tempo || (step === 'dictate' ? dTempo : t.tempo)), t0 = c.currentTime + (c.__played ? 0.15 : 0.4);   /* extra room for the very first play */
+  c.__played = true;
   var counts = opts.count ? 4 : 0, sched = [], i;
   for (i = 0; i < counts; i++){
     click(t0 + i*spb, i === 0, 'beat');
@@ -1093,13 +1140,13 @@ $('dLowBtn').onclick = function(){
     if (token !== playToken) return;
     var beat = 0, next = c.currentTime + 0.1, total = cur().bars * 4, shown = [];
     $('dLowBtn').textContent = '■ Stop low beat';
-    function pump(){          /* keep ~0.5s of beats scheduled ahead on the audio clock */
-      while (next < c.currentTime + 0.5){
+    function pump(){          /* keep ~0.8s of beats scheduled ahead on the audio clock */
+      while (next < c.currentTime + 0.8){
         kick(next, beat % 4 === 0); shown.push({at:next, len:60/dTempo, i:beat % total});
         beat++; next += 60 / dTempo;
       }
     }
-    pump(); lowTimer = setInterval(pump, 40);
+    pump(); lowTimer = setInterval(pump, 100);
     (function frame(){
       if (token !== playToken) return;
       var now = seenTime(c), hit = -1;
