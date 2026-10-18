@@ -95,18 +95,18 @@
   .dot.on{background:#ff9f1c;color:#000}
   .bigtest{text-align:center;font-size:26px;font-weight:bold;letter-spacing:.5px;margin-bottom:4px}
   .instruct{text-align:center;color:var(--dim);font-size:14px;margin-bottom:8px}
-  .exwrap{width:100%;max-width:1000px;margin:12px auto 0}
+  .exwrap{width:100%;max-width:1000px;margin:12px auto 0;background:#fff;color:#000;border-radius:10px;padding:16px}
   .exrow{display:flex;width:100%}
-  .excell{flex:1 1 0;min-width:0;aspect-ratio:1/1;border:2px solid var(--ink);margin-left:-2px;background:#0e1b22;
-    display:flex;flex-direction:column;align-items:stretch;justify-content:space-between;padding:6px 4px 4px;color:var(--ink);overflow:hidden}
-  .excell.barstart{border-left:6px solid var(--ink);margin-left:0}
-  .excell.rowend{border-right:6px solid var(--ink)}
+  .excell{flex:1 1 0;min-width:0;aspect-ratio:1/1;border:2px solid #000;margin-left:-2px;background:#fff;
+    display:flex;flex-direction:column;align-items:stretch;justify-content:space-between;padding:6px 4px 4px;color:#000;overflow:hidden}
+  .excell.barstart{border-left:6px solid #000;margin-left:0}
+  .excell.rowend{border-right:6px solid #000}
   .excell svg{width:86%;margin:0 auto;aspect-ratio:100/70;height:auto;flex:none;display:block}
   .exsol{flex:1 1 auto;display:flex;align-items:center;justify-content:center;white-space:nowrap;
-    font-weight:bold;color:var(--accent);font-size:clamp(16px,3vw,38px);letter-spacing:.06em}
+    font-weight:bold;color:#000;font-size:clamp(16px,3vw,38px);letter-spacing:.06em}
   .exsol.small{font-size:clamp(11px,2vw,26px);letter-spacing:.02em}
-  .excap{text-align:center;font-size:20px;font-weight:bold;color:var(--accent);margin:4px 0 12px}
-  .exhow{text-align:center;color:var(--ink);font-size:16px;margin:6px 0 12px;line-height:1.5}
+  .excap{text-align:center;font-size:20px;font-weight:bold;color:#000;margin:4px 0 12px}
+  .exhow{text-align:center;color:#000;font-size:16px;margin:6px 0 12px;line-height:1.5}
   .ctrls{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;margin-top:14px}
 </style>
 </head>
@@ -626,7 +626,7 @@ var dTempo = 50, dTempoFor = null, plays = {rhythm:0, melody:0}, playsFor = null
    master gain; stopping just disconnects it, which silences everything already scheduled. */
 var master = null;
 function ctxA(){
-  if (!AC) AC = new (window.AudioContext || window.webkitAudioContext)({latencyHint:'interactive'});
+  if (!AC) AC = new (window.AudioContext || window.webkitAudioContext)({latencyHint:'playback'});   /* a bigger buffer: steadier on busy or Bluetooth setups */
   if (AC.state === 'suspended') AC.resume();
   return AC;
 }
@@ -634,8 +634,20 @@ function ready(cb){            /* run cb only once the clock is actually running
   var c = ctxA();
   if (c.state === 'running') cb(c); else c.resume().then(function(){ cb(c); });
 }
+/* Everything plays through one gain and a limiter, so layered sounds (count-in, low beat, clicks,
+   melody) can never add up past full scale; that sum is what used to clip and sound distorted. */
+function busFor(c){
+  if (!c.__bus){
+    var g = c.createGain(); g.gain.value = 0.75;
+    var lim = c.createDynamicsCompressor();
+    lim.threshold.value = -14; lim.knee.value = 10; lim.ratio.value = 10; lim.attack.value = 0.002; lim.release.value = 0.12;
+    g.connect(lim); lim.connect(c.destination);
+    c.__bus = g;
+  }
+  return c.__bus;
+}
 function out(){
-  if (!master){ master = AC.createGain(); master.connect(AC.destination); }
+  if (!master){ master = AC.createGain(); master.connect(busFor(AC)); }
   return master;
 }
 function seenTime(c){          /* what the listener is hearing now, so lights match the sound */
@@ -646,19 +658,20 @@ function kick(at, accent){
   if (vol <= 0) return;
   var c = AC, o = c.createOscillator(), g = c.createGain();
   o.type = 'sine';
-  o.frequency.setValueAtTime(accent ? 135 : 115, at);
-  o.frequency.exponentialRampToValueAtTime(48, at + 0.14);
+  /* a deep thump that still comes out of laptop speakers: it stops at 70 Hz, not 48 */
+  o.frequency.setValueAtTime(accent ? 150 : 130, at);
+  o.frequency.exponentialRampToValueAtTime(70, at + 0.12);
   g.gain.setValueAtTime(0.0001, at);
-  g.gain.exponentialRampToValueAtTime(Math.max(0.001, vol * (accent ? 1.0 : 0.8)), at + 0.008);
-  g.gain.exponentialRampToValueAtTime(0.0001, at + 0.32);
-  o.connect(g); g.connect(out()); o.start(at); o.stop(at + 0.35);
+  g.gain.exponentialRampToValueAtTime(Math.max(0.001, vol * (accent ? 0.62 : 0.5)), at + 0.008);
+  g.gain.exponentialRampToValueAtTime(0.0001, at + 0.28);
+  o.connect(g); g.connect(out()); o.start(at); o.stop(at + 0.3);
 }
 function click(at, accent, kind){
   var c = AC, o = c.createOscillator(), g = c.createGain();
-  o.type = kind === 'wood' ? 'square' : 'sine';
-  o.frequency.value = kind === 'wood' ? 1500 : (accent ? 1250 : 850);
+  o.type = kind === 'wood' ? 'triangle' : 'sine';          /* a square wave is harsh and buzzy; triangle is a softer tick */
+  o.frequency.value = kind === 'wood' ? 1300 : (accent ? 1250 : 850);
   g.gain.setValueAtTime(0.0001, at);
-  g.gain.exponentialRampToValueAtTime(kind === 'wood' ? 0.55 : (accent ? 0.5 : 0.3), at + 0.003);
+  g.gain.exponentialRampToValueAtTime(kind === 'wood' ? 0.42 : (accent ? 0.36 : 0.22), at + 0.003);
   g.gain.exponentialRampToValueAtTime(0.0001, at + 0.07);
   o.connect(g); g.connect(out()); o.start(at); o.stop(at + 0.09);
 }
@@ -668,18 +681,18 @@ function tone(at, freq, dur){
   var tA = at + 0.01, tD = at + Math.max(0.02, Math.min(0.15, dur*0.4)),
       tR = at + Math.max(tD - at + 0.005, dur - 0.04), tE = at + Math.max(dur, tR - at + 0.01);
   g.gain.setValueAtTime(0.0001, at);
-  g.gain.exponentialRampToValueAtTime(0.4, tA);
-  g.gain.exponentialRampToValueAtTime(0.2, tD);
-  g.gain.setValueAtTime(0.2, tR);
+  g.gain.exponentialRampToValueAtTime(0.3, tA);
+  g.gain.exponentialRampToValueAtTime(0.15, tD);
+  g.gain.setValueAtTime(0.15, tR);
   g.gain.exponentialRampToValueAtTime(0.0001, tE);
   g.connect(out());
-  [[1,'triangle',1],[2,'sine',0.25],[3,'sine',0.1]].forEach(function(p){
+  [[1,'triangle',1],[2,'sine',0.2],[3,'sine',0.06]].forEach(function(p){
     var o = c.createOscillator(), og = c.createGain();
     o.type = p[1]; o.frequency.value = freq*p[0]; og.gain.value = p[2];
     o.connect(og); og.connect(g); o.start(at); o.stop(tE + 0.02);
   });
 }
-function setStatus(m){ $(step === 'warm' ? 'wStatus' : 'dStatus').textContent = m; }
+function setStatus(m){ var el = $(step === 'warm' ? 'wStatus' : 'dStatus'); if (el.textContent !== m) el.textContent = m; }   /* no rewrite when unchanged */
 function clearLights(){
   document.querySelectorAll('.dot.cvis').forEach(function(d){ d.classList.remove('cvis'); });
   document.querySelectorAll('.dot.on, .dot.cur').forEach(function(d){ d.classList.remove('on','count','cur'); });
@@ -728,34 +741,43 @@ function schedulePlay(c, token, mode, opts){
     sched.push({at:base + i*spb, end:base + (i+1)*spb, beat:i});
   }
 
-  var lastNote = -2;
+  var lastNote = -2, lastSig = '', hlEls = [];
   (function frame(){
     if (token !== playToken) return;
     var now = seenTime(c), note = -1, beat = -1, cnt = -1, flashDot = -1;
-    sched.forEach(function(s){
-      if (s.flash && now >= s.at && now < s.flashEnd) flashDot = s.dot;   /* a box flashes on every note in it */
-      if (now < s.at || now >= s.end) return;
-      if (s.count !== undefined) cnt = s.count;
-      if (s.beat !== undefined) beat = s.beat;
-      if (s.note !== undefined) note = s.note;
-    });
-    document.querySelectorAll('.dot.on, .dot.cur').forEach(function(d){ d.classList.remove('on','count','cur'); });
-    for (var ci = 0; ci < 4; ci++){          /* numbers appear for the count-in, each one vanishing once counted */
-      var ce = $('cdot' + ci);
-      if (ce){ ce.classList.toggle('cvis', cnt >= 0 && ci >= cnt); ce.classList.toggle('on', ci === cnt); ce.classList.toggle('count', ci === cnt); }
+    for (var si = 0; si < sched.length; si++){
+      var s_ = sched[si];
+      if (s_.flash && now >= s_.at && now < s_.flashEnd) flashDot = s_.dot;   /* a box flashes on every note in it */
+      if (now < s_.at || now >= s_.end) continue;
+      if (s_.count !== undefined) cnt = s_.count;
+      if (s_.beat !== undefined) beat = s_.beat;
+      if (s_.note !== undefined) note = s_.note;
     }
-    if (cnt >= 0){
-      setStatus('Count in... ' + (cnt+1));
-    } else if (beat >= 0){
-      var flashOn = $('optFlash').checked;
-      /* flash on: soft glow on the current beat plus a bright flash on each note.
-         flash off: the current beat simply lights up steadily, like a pulse */
-      var dd = $('dot' + beat); if (dd) dd.classList.add(flashOn ? 'cur' : 'on');
-      var fd = (flashOn && flashDot >= 0) ? $('dot' + flashDot) : null; if (fd) fd.classList.add('on');
-      setStatus(mode === 'rhythm' ? 'Listen to the rhythm' : 'Listen to the melody');
+    var flashOn = $('optFlash').checked;
+    var sig = cnt + '|' + beat + '|' + flashDot + '|' + flashOn;
+    if (sig !== lastSig){                    /* touch the page only when the lights really change */
+      lastSig = sig;
+      document.querySelectorAll('.dot.on, .dot.cur').forEach(function(d){ d.classList.remove('on','count','cur'); });
+      for (var ci = 0; ci < 4; ci++){        /* numbers appear for the count-in, each one vanishing once counted */
+        var ce = $('cdot' + ci);
+        if (ce){ ce.classList.toggle('cvis', cnt >= 0 && ci >= cnt); ce.classList.toggle('on', ci === cnt); ce.classList.toggle('count', ci === cnt); }
+      }
+      if (cnt >= 0){
+        setStatus('Count in... ' + (cnt+1));
+      } else if (beat >= 0){
+        /* flash on: soft glow on the current beat plus a bright flash on each note.
+           flash off: the current beat simply lights up steadily, like a pulse */
+        var dd = $('dot' + beat); if (dd) dd.classList.add(flashOn ? 'cur' : 'on');
+        var fd = (flashOn && flashDot >= 0) ? $('dot' + flashDot) : null; if (fd) fd.classList.add('on');
+        setStatus(mode === 'rhythm' ? 'Listen to the rhythm' : 'Listen to the melody');
+      }
     }
-    if (note !== lastNote){
-      [edEls, dEls, wEls].forEach(function(arr){ (arr || []).forEach(function(g, k){ if (g) g.classList.toggle('hl', k === note); }); });
+    if (note !== lastNote){                  /* move the note highlight: un-light the old one, light the new */
+      hlEls.forEach(function(g){ g.classList.remove('hl'); });
+      hlEls = [];
+      if (note >= 0){
+        [edEls, dEls, wEls].forEach(function(arr){ var g = arr && arr[note]; if (g){ g.classList.add('hl'); hlEls.push(g); } });
+      }
       lastNote = note;
     }
     if (now > totalEnd + 0.15){ clearLights(); setStatus('Done'); return; }
@@ -765,8 +787,8 @@ function schedulePlay(c, token, mode, opts){
 
 /* ---------------- student example (fixed, not the test) ---------------- */
 var EXAMPLE = [   /* one entry per beat: stick type, solfa letters */
-  ['ta','m'], ['titi','s l'], ['ta','s'], ['za',''],
-  ['titi','m r'], ['ta','m'], ['tika','f m r d'], ['ta','d']
+  ['ta','d'], ['titi','r m'], ['ta','f'], ['za',''],
+  ['titi','m r'], ['ta','m'], ['ta','r'], ['ta','d']
 ];
 var SVGNS = 'http://www.w3.org/2000/svg';
 function svgEl(name, attrs){
@@ -790,7 +812,7 @@ function stickSvg(kind){
 }
 var exLevel = 0;
 function newExample(){            /* 8 beats = 2 bars of 4/4; solfa letters match the notes in each beat */
-  var types = ['ta','ta','ta','titi','titi','tika','za'], count = {ta:1, titi:2, tika:4, za:0};
+  var types = ['ta','ta','ta','ta','titi','titi','titi','za'], count = {ta:1, titi:2, za:0};
   var letters = 'drmfslt', beats = [], i;
   for (i = 0; i < 8; i++){
     var t;
@@ -798,15 +820,20 @@ function newExample(){            /* 8 beats = 2 bars of 4/4; solfa letters matc
     beats.push(t);
   }
   var total = 0; beats.forEach(function(t){ total += count[t]; });
-  var deg = [0,2,4][Math.floor(Math.random()*3)], seen = 0, out_ = [];
+  var deg = 0, seen = 0, out_ = [];            /* every example starts on do */
   beats.forEach(function(t){
     var ls = [];
     for (var k = 0; k < count[t]; k++){
       seen++;
-      if (seen === total) deg = 0;
-      else if (seen > 1){
-        var st = [-2,-1,-1,0,1,1,2][Math.floor(Math.random()*7)];
-        deg = Math.max(0, Math.min(6, deg + st));
+      if (seen > 1){
+        /* step movement only: up one, down one, or (less often) stay. Only moves that can still get back
+           to do by the last note are allowed, so every example ends on do. */
+        var left = total - seen, opts = [];
+        [[-1,4],[1,4],[0,1]].forEach(function(m){
+          var d2 = deg + m[0];
+          if (d2 >= 0 && d2 <= 6 && d2 <= left) for (var w = 0; w < m[1]; w++) opts.push(d2);
+        });
+        deg = opts[Math.floor(Math.random()*opts.length)];
       }
       ls.push(letters[deg]);
     }
