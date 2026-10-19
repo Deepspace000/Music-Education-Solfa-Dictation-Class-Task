@@ -40,7 +40,9 @@
   .chk input{width:17px;height:17px;accent-color:var(--accent)}
   .score{background:#fff;border-radius:8px;padding:6px;overflow:hidden;min-height:80px}
   .score svg{display:block;width:100% !important;height:auto !important;margin:0 auto}
-  .score .hl *{fill:#e8590c !important;stroke:#e8590c !important}
+  .score{position:relative}
+  .note-marker{position:absolute;left:0;top:0;pointer-events:none;display:none;z-index:5;will-change:transform;
+    border:3px solid #e8590c;background:rgba(232,89,12,.20);border-radius:12px;box-shadow:0 0 14px rgba(232,89,12,.55)}
   .score .sel *{fill:#1a73e8 !important;stroke:#1a73e8 !important}
   .score .vf-stavenote{cursor:pointer}
   .hidden{display:none}
@@ -225,6 +227,7 @@
         <label class="chk"><input type="checkbox" id="optCount" checked> Count-in (4 beats)</label>
         <label class="chk"><input type="checkbox" id="optBeat" checked> Beat clicks in the melody</label>
         <label class="chk"><input type="checkbox" id="optFlash" checked> Rhythm flash on the boxes</label>
+        <label class="chk"><input type="checkbox" id="optLite"> Lighter display (if it ever stutters)</label>
       </div>
       <div class="ctrls" style="margin-top:12px;align-items:flex-end">
         <label class="f" style="min-width:230px">Tempo: <b id="dTempoVal">50</b> beats per minute
@@ -644,11 +647,16 @@ function ready(cb){            /* run cb only once the clock is actually running
 }
 function busFor(c){
   if (!c.__bus){
-    var g = c.createGain(); g.gain.value = 0.8;
-    var sat = c.createWaveShaper(), n = 2048, curve = new Float32Array(n);
-    for (var i = 0; i < n; i++){ var x = i / (n - 1) * 2 - 1; curve[i] = Math.tanh(1.6 * x) / Math.tanh(1.6); }
-    sat.curve = curve;
-    g.connect(sat); sat.connect(c.destination);
+    var g = c.createGain();
+    if (typeof OfflineAudioContext !== 'undefined' && c instanceof OfflineAudioContext){
+      g.gain.value = 1; g.connect(c.destination);            /* a recording being made: level and limiter are applied live, once */
+    } else {
+      g.gain.value = 0.8;
+      var sat = c.createWaveShaper(), n = 2048, curve = new Float32Array(n);
+      for (var i = 0; i < n; i++){ var x = i / (n - 1) * 2 - 1; curve[i] = Math.tanh(1.6 * x) / Math.tanh(1.6); }
+      sat.curve = curve;
+      g.connect(sat); sat.connect(c.destination);
+    }
     c.__bus = g;
   }
   return c.__bus;
@@ -734,18 +742,67 @@ function tone(at, freq, dur){
 }
 
 /* get the audio ready on the very first touch anywhere on the page */
+/* a whisper of noise, far below hearing, so an HDMI / projector / Bluetooth output never falls asleep between plays
+   (waking up is what cuts off or crackles the first sounds) */
+function keepAlive(c){
+  if (c.__ka) return;
+  var len = c.sampleRate, buf = c.createBuffer(1, len, c.sampleRate), d = buf.getChannelData(0);
+  for (var i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * 0.0003;
+  var src = c.createBufferSource(); src.buffer = buf; src.loop = true; src.connect(c.destination); src.start();
+  c.__ka = src;
+}
+var playActive = false, lowActive = false, curSrc = null, lowSrc = null, renderCache = null;
+/* if the sound output changes (projector plugged in, speakers switched), start a fresh audio connection
+   as soon as nothing is playing; the old one can crackle after a device change */
+if (navigator.mediaDevices && navigator.mediaDevices.addEventListener){
+  navigator.mediaDevices.addEventListener('devicechange', function(){
+    setTimeout(function(){
+      if (playActive || lowActive || !AC) return;
+      try { AC.close(); } catch (e) {}
+      AC = null; master = null;
+      warmAudio();
+    }, 400);
+  });
+}
 function warmAudio(){
-  try { var c = ctxA(); busFor(c); clickBuf(c, 'wood', false); clickBuf(c, 'beat', false); clickBuf(c, 'beat', true); kickBuf(c, false); kickBuf(c, true); toneWave(c); } catch (e) {}
+  try { var c = ctxA(); keepAlive(c); busFor(c); clickBuf(c, 'wood', false); clickBuf(c, 'beat', false); clickBuf(c, 'beat', true); kickBuf(c, false); kickBuf(c, true); toneWave(c); } catch (e) {}
 }
 ['pointerdown', 'keydown', 'touchstart'].forEach(function(ev){ document.addEventListener(ev, warmAudio, {capture:true, passive:true}); });
+/* floating highlight over the note that is sounding; only moves (compositor), never repaints the score */
+function markerFor(id){
+  var cont = $(id), m = cont.querySelector('.note-marker');
+  if (!m){ m = document.createElement('div'); m.className = 'note-marker'; cont.appendChild(m); }
+  return m;
+}
+function moveNoteMarkers(note){
+  if ($('optLite').checked){ document.querySelectorAll('.note-marker').forEach(function(m){ m.style.display = 'none'; }); return; }
+  [[edEls, 'edScore'], [dEls, 'dScore'], [wEls, 'wScore']].forEach(function(p){
+    var cont = $(p[1]), g = p[0] && p[0][note];
+    if (!cont || cont.offsetParent === null) return;              /* only the score that is on screen */
+    var m = markerFor(p[1]);
+    if (note < 0 || !g || g.style.visibility === 'hidden'){ m.style.display = 'none'; return; }   /* never point at a note still hidden */
+    var cr = cont.getBoundingClientRect(), r = g.getBoundingClientRect();
+    m.style.display = 'block';
+    m.style.width = (r.width + 12) + 'px'; m.style.height = (r.height + 12) + 'px';
+    m.style.transform = 'translate(' + (r.left - cr.left + cont.scrollLeft - 6) + 'px,' + (r.top - cr.top + cont.scrollTop - 6) + 'px)';
+  });
+}
+function showLiteNote(){
+  var t = $('dStatus'); if (step !== 'dictate') return;
+  var n = document.createElement('div'); n.className = 'note'; n.style.cssText = 'text-align:center;color:var(--accent2);margin-top:4px';
+  n.textContent = 'The screen was struggling, so the display is now lighter to keep the sound smooth. (Untick "Lighter display" to turn it back.)';
+  t.after(n); setTimeout(function(){ if (n.parentNode) n.remove(); }, 6000);
+}
 function setStatus(m){ var el = $(step === 'warm' ? 'wStatus' : 'dStatus'); if (el.textContent !== m) el.textContent = m; }   /* no rewrite when unchanged */
 function clearLights(){
   document.querySelectorAll('.dot.cvis').forEach(function(d){ d.classList.remove('cvis'); });
   document.querySelectorAll('.dot.on, .dot.cur').forEach(function(d){ d.classList.remove('on','count','cur'); });
-  [edEls, dEls, wEls].forEach(function(arr){ (arr || []).forEach(function(g){ if (g) g.classList.remove('hl'); }); });
+  document.querySelectorAll('.note-marker').forEach(function(m){ m.style.display = 'none'; });
 }
 function stopAll(){
-  playToken++; cancelAnimationFrame(rafId); clearInterval(lowTimer); lowTimer = 0;
+  playToken++; cancelAnimationFrame(rafId); clearInterval(lowTimer); lowTimer = 0; playActive = false; lowActive = false;
+  [curSrc, lowSrc].forEach(function(sn){ try { if (sn) sn.stop(); } catch (e) {} });
+  curSrc = lowSrc = null;
   $('dLowBtn').textContent = '▶ Play low beat'; $('wStatus').textContent = ' '; $('dStatus').textContent = ' ';
   if (master){ try{ master.disconnect(); }catch(e){} master = null; }
   clearLights();
@@ -759,10 +816,18 @@ function play(mode, opts){
   setStatus('Starting...');
   ready(function(c){ if (token === playToken) schedulePlay(c, token, mode, opts); });
 }
-function schedulePlay(c, token, mode, opts){
-  var t = opts.test || cur();
-  var spb = 60 / (opts.tempo || (step === 'dictate' ? dTempo : t.tempo)), t0 = c.currentTime + (c.__played ? 0.15 : 0.4);   /* extra room for the very first play */
-  c.__played = true;
+/* Build a whole playback ahead of time into ONE recording. Playing a finished recording asks almost
+   nothing of the computer, so it cannot stutter however busy the laptop or projector is.            */
+async function renderAudio(secs, builder, frames){
+  var sr = AC.sampleRate, oc = new OfflineAudioContext(1, frames || Math.ceil(secs * sr), sr);
+  var realAC = AC, realMaster = master, result;
+  AC = oc; master = null;
+  try { result = builder(); } finally { AC = realAC; master = realMaster; }
+  return { buffer: await oc.startRendering(), result: result };
+}
+
+/* put every sound of a playback on the timeline starting at t0, and list what the lights must do */
+function buildPlayback(t, mode, opts, spb, t0){
   var counts = opts.count ? 4 : 0, sched = [], i;
   for (i = 0; i < counts; i++){
     click(t0 + i*spb, i === 0, 'beat');
@@ -787,10 +852,58 @@ function schedulePlay(c, token, mode, opts){
     if (opts.beats) click(base + i*spb, i % 4 === 0, 'beat');
     sched.push({at:base + i*spb, end:base + (i+1)*spb, beat:i});
   }
+  return { sched: sched, totalEnd: totalEnd, qTotal: q };
+}
 
-  var lastNote = -2, lastSig = '', hlEls = [];
+function schedulePlay(c, token, mode, opts){
+  var t = opts.test || cur();
+  var spb = 60 / (opts.tempo || (step === 'dictate' ? dTempo : t.tempo));
+  playActive = true;
+  setStatus('Getting ready...');
+  var T0R = 0.05;                                   /* a hair of silence at the start of the recording */
+  var key = JSON.stringify([t.notes.map(function(n){ return n.d + (n.rest ? 'r' : '') + (n.deg === null ? '' : n.deg); }),
+    t.bars, mode, !!opts.count, !!opts.beats, !!opts.low, spb.toFixed(5), c.sampleRate, $('dLowVol').value]);
+  var p;
+  if (renderCache && renderCache.key === key) {
+    p = Promise.resolve(renderCache.value);          /* same settings as last time: already recorded */
+  } else {
+    var qTot = 0; t.notes.forEach(function(n){ qTot += DURS[n.d].q; });
+    var secs = T0R + ((opts.count ? 4 : 0) + Math.max(qTot, t.bars * 4)) * spb + 0.8;
+    p = renderAudio(secs, function(){ return buildPlayback(t, mode, opts, spb, T0R); })
+      .then(function(r){ renderCache = { key: key, value: r }; return r; });
+  }
+  p.then(function(r){
+    if (token !== playToken) return;
+    var tLive = c.currentTime + 0.12, shift = tLive - T0R;
+    var src = c.createBufferSource(); src.buffer = r.buffer; src.connect(out()); src.start(tLive);
+    curSrc = src;
+    var sched = r.result.sched.map(function(e){
+      var o = {}; for (var k in e) o[k] = e[k];
+      o.at += shift; o.end += shift; if (o.flashEnd !== undefined) o.flashEnd += shift;
+      return o;
+    });
+    startFrames(c, token, mode, sched, r.result.totalEnd + shift);
+  }).catch(function(e){
+    console.warn('could not record ahead; playing live instead', e);
+    if (token !== playToken) return;
+    var t0 = c.currentTime + 0.3, r = buildPlayback(t, mode, opts, spb, t0);
+    startFrames(c, token, mode, r.sched, r.totalEnd);
+  });
+}
+
+/* the lights: driven by the audio clock, touching the page only when something changes */
+function startFrames(c, token, mode, sched, totalEnd){
+  var lastNote = -2, lastSig = '', lite = $('optLite').checked, lastT = 0, slow = 0, t0w = performance.now();
   (function frame(){
     if (token !== playToken) return;
+    var tf = performance.now();
+    if (lastT && tf - lastT > 70 && tf - t0w > 600) {         /* the screen is struggling (busy laptop, projector) */
+      if (++slow >= 4 && !lite) {
+        lite = true; $('optLite').checked = true; lastSig = '';
+        showLiteNote();
+      }
+    }
+    lastT = tf;
     var now = seenTime(c), note = -1, beat = -1, cnt = -1, flashDot = -1;
     for (var si = 0; si < sched.length; si++){
       var s_ = sched[si];
@@ -800,7 +913,7 @@ function schedulePlay(c, token, mode, opts){
       if (s_.beat !== undefined) beat = s_.beat;
       if (s_.note !== undefined) note = s_.note;
     }
-    var flashOn = $('optFlash').checked;
+    var flashOn = $('optFlash').checked && !lite;
     var sig = cnt + '|' + beat + '|' + flashDot + '|' + flashOn;
     if (sig !== lastSig){                    /* touch the page only when the lights really change */
       lastSig = sig;
@@ -819,15 +932,11 @@ function schedulePlay(c, token, mode, opts){
         setStatus(mode === 'rhythm' ? 'Listen to the rhythm' : 'Listen to the melody');
       }
     }
-    if (note !== lastNote){                  /* move the note highlight: un-light the old one, light the new */
-      hlEls.forEach(function(g){ g.classList.remove('hl'); });
-      hlEls = [];
-      if (note >= 0){
-        [edEls, dEls, wEls].forEach(function(arr){ var g = arr && arr[note]; if (g){ g.classList.add('hl'); hlEls.push(g); } });
-      }
+    if (note !== lastNote){                  /* move the floating marker to the sounding note: no repaint of the score */
+      moveNoteMarkers(note);
       lastNote = note;
     }
-    if (now > totalEnd + 0.15){ clearLights(); setStatus('Done'); return; }
+    if (now > totalEnd + 0.15){ clearLights(); setStatus('Done'); playActive = false; return; }
     rafId = requestAnimationFrame(frame);
   })();
 }
@@ -1130,35 +1239,42 @@ $('dStop').onclick = stopAll;
 $('optCount').onchange = function(){ var r = document.querySelector('.brow'); if (r) r.classList.toggle('nocount', !this.checked); };
 $('maxPlays').onchange = updateCounts;
 $('btnResetCounts').onclick = function(){ plays = {rhythm:0, melody:0}; updateCounts(); };
-$('dTempo').oninput = function(){ dTempo = parseInt(this.value, 10) || 50; $('dTempoVal').textContent = dTempo; };
+$('dTempo').oninput = function(){
+  dTempo = parseInt(this.value, 10) || 50; $('dTempoVal').textContent = dTempo;
+  if (lowActive){ clearTimeout(lowRestart); lowRestart = setTimeout(function(){ if (lowActive){ $('dLowBtn').click(); $('dLowBtn').click(); } }, 300); }
+};
 $('dLowVol').oninput = function(){ $('dLowVal').textContent = this.value; };
 $('dLowBtn').onclick = function(){
-  if (lowTimer){ stopAll(); return; }
+  if (lowActive){ stopAll(); return; }
   stopAll();
   var token = playToken;
   ready(function(c){
     if (token !== playToken) return;
-    var beat = 0, next = c.currentTime + 0.1, total = cur().bars * 4, shown = [];
+    lowActive = true;
     $('dLowBtn').textContent = '■ Stop low beat';
-    function pump(){          /* keep ~0.8s of beats scheduled ahead on the audio clock */
-      while (next < c.currentTime + 0.8){
-        kick(next, beat % 4 === 0); shown.push({at:next, len:60/dTempo, i:beat % total});
-        beat++; next += 60 / dTempo;
-      }
-    }
-    pump(); lowTimer = setInterval(pump, 100);
-    (function frame(){
+    var spb = 60 / dTempo, sr = c.sampleRate, frames = Math.round(4 * spb * sr), total = cur().bars * 4;
+    renderAudio(0, function(){ for (var i = 0; i < 4; i++) kick(i * spb, i === 0); return null; }, frames).then(function(r){
       if (token !== playToken) return;
-      var now = seenTime(c), hit = -1;
-      shown = shown.filter(function(x){ return x.at + x.len > now - 0.5; });
-      shown.forEach(function(x){ if (x.at <= now && now < x.at + x.len) hit = x.i; });
-      document.querySelectorAll('.dot.on').forEach(function(d){ d.classList.remove('on','count'); });
-      if (hit >= 0){ var d = $('dot' + hit); if (d) d.classList.add('on'); }
-      setStatus('Low beat');
-      rafId = requestAnimationFrame(frame);
-    })();
+      var tLive = c.currentTime + 0.12;
+      var src = c.createBufferSource(); src.buffer = r.buffer; src.loop = true; src.connect(out()); src.start(tLive);
+      lowSrc = src;
+      var lastHit = -2;
+      (function frame(){
+        if (token !== playToken) return;
+        var rel = seenTime(c) - tLive, hit = -1;
+        if (rel >= 0) hit = Math.floor(rel / spb) % total;
+        if (hit !== lastHit){
+          lastHit = hit;
+          document.querySelectorAll('.dot.on').forEach(function(d){ d.classList.remove('on','count'); });
+          if (hit >= 0){ var d = $('dot' + hit); if (d) d.classList.add('on'); }
+          setStatus('Low beat');
+        }
+        rafId = requestAnimationFrame(frame);
+      })();
+    });
   });
 };
+var lowRestart = null;
 function groupsOf(t, upTo){ var seen = {}, n = 0; for (var i = 0; i < upTo; i++){ if (!seen[t.notes[i].g]){ seen[t.notes[i].g] = 1; n++; } } return n; }
 function soundIn(t, upTo){ var n = 0; for (var i = 0; i < upTo; i++) if (!t.notes[i].rest) n++; return n; }
 function updateRevealUI(t){
